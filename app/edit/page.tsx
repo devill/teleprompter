@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useState } from 'react';
+import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import MarkdownViewer from '../components/MarkdownViewer';
@@ -10,6 +10,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import CommentSidebar from '../components/CommentSidebar';
 import CommentForm from '../components/CommentForm';
 import NamePrompt from '../components/NamePrompt';
+import { useCommentPositioning } from '@/app/hooks/useCommentPositioning';
 import styles from './page.module.css';
 
 type ViewType = 'rendered' | 'raw';
@@ -48,6 +49,15 @@ function EditPageContent() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+
+  const viewerContainerRef = useRef<HTMLElement | null>(null);
+
+  const { positions, sortedComments, setCommentHeight } = useCommentPositioning({
+    comments,
+    content,
+    highlightedCommentId,
+    viewerContainerRef,
+  });
 
   useEffect(() => {
     const storedName = localStorage.getItem(USERNAME_STORAGE_KEY);
@@ -214,6 +224,7 @@ function EditPageContent() {
               highlightedCommentId={highlightedCommentId}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
+              containerRef={viewerContainerRef as React.RefObject<HTMLDivElement | null>}
             />
           ) : (
             <RawViewer
@@ -222,6 +233,7 @@ function EditPageContent() {
               highlightedCommentId={highlightedCommentId}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
+              containerRef={viewerContainerRef as React.RefObject<HTMLPreElement | null>}
             />
           )}
         </main>
@@ -249,10 +261,12 @@ function EditPageContent() {
                 </div>
               )}
               <CommentSidebar
-                comments={comments}
+                comments={sortedComments}
+                positions={positions}
                 highlightedCommentId={highlightedCommentId}
                 onCommentClick={handleCommentClick}
                 onDelete={handleCommentDelete}
+                onHeightMeasured={setCommentHeight}
               />
             </>
           )}

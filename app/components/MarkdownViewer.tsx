@@ -24,6 +24,7 @@ interface MarkdownViewerProps {
   highlightedCommentId: string | null;
   onTextSelect: (data: TextSelectionData) => void;
   onHighlightClick: (commentId: string) => void;
+  containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
 function findTextPosition(content: string, anchor: TextSelectionData): number {
@@ -81,6 +82,7 @@ function HighlightedText({
       <span
         key={`hl-${index}`}
         className={`${styles.commentHighlight} ${isHighlighted ? styles.commentHighlightActive : ''}`}
+        data-comment-id={region.commentId}
         onClick={(e) => {
           e.stopPropagation();
           onHighlightClick(region.commentId);
@@ -106,6 +108,7 @@ export default function MarkdownViewer({
   highlightedCommentId,
   onTextSelect,
   onHighlightClick,
+  containerRef,
 }: MarkdownViewerProps) {
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
@@ -191,7 +194,7 @@ export default function MarkdownViewer({
   }, [content, highlightRegions, highlightedCommentId, onHighlightClick]);
 
   return (
-    <div className={styles.container} onMouseUp={handleMouseUp}>
+    <div ref={containerRef} className={styles.container} onMouseUp={handleMouseUp}>
       <ReactMarkdown components={components}>{content}</ReactMarkdown>
     </div>
   );

@@ -23,6 +23,7 @@ interface RawViewerProps {
   highlightedCommentId: string | null;
   onTextSelect: (data: TextSelectionData) => void;
   onHighlightClick: (commentId: string) => void;
+  containerRef?: React.RefObject<HTMLPreElement | null>;
 }
 
 function findTextPosition(content: string, anchor: TextSelectionData): number {
@@ -46,6 +47,7 @@ export default function RawViewer({
   highlightedCommentId,
   onTextSelect,
   onHighlightClick,
+  containerRef,
 }: RawViewerProps) {
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
@@ -109,6 +111,7 @@ export default function RawViewer({
         <span
           key={`highlight-${index}`}
           className={`${styles.commentHighlight} ${isHighlighted ? styles.commentHighlightActive : ''}`}
+          data-comment-id={region.commentId}
           onClick={(e) => {
             e.stopPropagation();
             onHighlightClick(region.commentId);
@@ -129,7 +132,7 @@ export default function RawViewer({
   }, [content, highlightRegions, highlightedCommentId, onHighlightClick]);
 
   return (
-    <pre className={styles.container} onMouseUp={handleMouseUp}>
+    <pre ref={containerRef} className={styles.container} onMouseUp={handleMouseUp}>
       {renderContentWithHighlights}
     </pre>
   );
