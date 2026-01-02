@@ -1,0 +1,13 @@
+.container {
+  padding: var(--space-6);
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  user-select: text;
+  background-color: var(--color-bg-subtle);
+  color: var(--color-text);
+  min-height: 100%;
+}

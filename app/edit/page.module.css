@@ -1,0 +1,134 @@
+.page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: var(--space-4) var(--space-6);
+  border-bottom: 1px solid var(--color-border);
+  background-color: var(--color-bg-elevated);
+}
+
+.filePath {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--color-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+
+.content {
+  display: flex;
+  flex: 1;
+  gap: var(--space-6);
+  padding: var(--space-6);
+}
+
+.mainContent {
+  flex: 1;
+  min-width: 0;
+  background: var(--color-bg-elevated);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.sidebar {
+  width: 320px;
+  flex-shrink: 0;
+}
+
+.sidebarPlaceholder {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.selectionActions {
+  background-color: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+  box-shadow: var(--shadow-sm);
+}
+
+.selectedText {
+  font-family: var(--font-serif);
+  font-size: var(--text-sm);
+  font-style: italic;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+  word-break: break-word;
+  line-height: var(--leading-relaxed);
+}
+
+.addCommentButton {
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent-text);
+  background-color: var(--color-accent);
+  border: none;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-base), transform var(--transition-fast);
+}
+
+.addCommentButton:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.addCommentButton:active {
+  transform: translateY(1px);
+}
+
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  color: var(--color-text-muted);
+  font-family: var(--font-sans);
+}
+
+.error {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  color: var(--color-error);
+  gap: var(--space-4);
+}
+
+.errorMessage {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  background-color: var(--color-error-bg);
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+}
+
+@media (max-width: 768px) {
+  .content {
+    flex-direction: column;
+    padding: var(--space-4);
+  }
+
+  .sidebar {
+    width: 100%;
+  }
+
+  .filePath {
+    max-width: 40%;
+  }
+}
