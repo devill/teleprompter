@@ -8,9 +8,9 @@ import RawViewer from '../components/RawViewer';
 import ViewToggle from '../components/ViewToggle';
 import ThemeToggle from '../components/ThemeToggle';
 import CommentSidebar from '../components/CommentSidebar';
-import CommentForm from '../components/CommentForm';
 import NamePrompt from '../components/NamePrompt';
 import { useCommentPositioning } from '@/app/hooks/useCommentPositioning';
+import { PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
 import styles from './page.module.css';
 
 type ViewType = 'rendered' | 'raw';
@@ -19,6 +19,7 @@ interface TextSelectionData {
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
+  selectionTop: number;
 }
 
 interface Comment {
@@ -55,8 +56,9 @@ function EditPageContent() {
   const { positions, sortedComments, setCommentHeight } = useCommentPositioning({
     comments,
     content,
-    highlightedCommentId,
+    highlightedCommentId: showCommentForm ? PENDING_COMMENT_ID : highlightedCommentId,
     viewerContainerRef,
+    pendingAnchor: showCommentForm && selectedAnchor ? selectedAnchor : null,
   });
 
   useEffect(() => {
@@ -238,38 +240,33 @@ function EditPageContent() {
           )}
         </main>
         <aside className={styles.sidebar}>
-          {showCommentForm && selectedAnchor ? (
-            <CommentForm
-              selectedText={selectedAnchor.selectedText}
-              onSubmit={handleCommentSubmit}
-              onCancel={handleCommentCancel}
-            />
-          ) : (
-            <>
-              {selectedAnchor && (
-                <div className={styles.selectionActions}>
-                  <div className={styles.selectedText}>
-                    &quot;{selectedAnchor.selectedText.slice(0, 100)}
-                    {selectedAnchor.selectedText.length > 100 ? '...' : ''}&quot;
-                  </div>
-                  <button
-                    className={styles.addCommentButton}
-                    onClick={handleAddCommentClick}
-                  >
-                    Add Comment
-                  </button>
-                </div>
-              )}
-              <CommentSidebar
-                comments={sortedComments}
-                positions={positions}
-                highlightedCommentId={highlightedCommentId}
-                onCommentClick={handleCommentClick}
-                onDelete={handleCommentDelete}
-                onHeightMeasured={setCommentHeight}
-              />
-            </>
+          {selectedAnchor && !showCommentForm && (
+            <div className={styles.selectionActions}>
+              <div className={styles.selectedText}>
+                &quot;{selectedAnchor.selectedText.slice(0, 100)}
+                {selectedAnchor.selectedText.length > 100 ? '...' : ''}&quot;
+              </div>
+              <button
+                className={styles.addCommentButton}
+                onClick={handleAddCommentClick}
+              >
+                Add Comment
+              </button>
+            </div>
           )}
+          <CommentSidebar
+            comments={sortedComments}
+            positions={positions}
+            highlightedCommentId={highlightedCommentId}
+            onCommentClick={handleCommentClick}
+            onDelete={handleCommentDelete}
+            onHeightMeasured={setCommentHeight}
+            pendingForm={showCommentForm && selectedAnchor ? {
+              selectedText: selectedAnchor.selectedText,
+              onSubmit: handleCommentSubmit,
+              onCancel: handleCommentCancel,
+            } : null}
+          />
         </aside>
       </div>
       {showNamePrompt && (

@@ -1,7 +1,10 @@
+export const PENDING_COMMENT_ID = '__pending__';
+
 export interface TextSelectionData {
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
+  selectionTop?: number;
 }
 
 export interface Comment {
@@ -100,4 +103,18 @@ export function resolveCollisions(
   }
 
   return result;
+}
+
+export function createPendingComment(anchor: TextSelectionData): Comment {
+  return {
+    id: PENDING_COMMENT_ID,
+    author: '',
+    text: '',
+    anchor: {
+      selectedText: anchor.selectedText,
+      contextBefore: anchor.contextBefore,
+      contextAfter: anchor.contextAfter,
+    },
+    createdAt: new Date().toISOString(),
+  };
 }

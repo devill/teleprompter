@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react';
 import styles from './CommentSidebar.module.css';
+import { PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
+import CommentForm from './CommentForm';
 
 interface CommentAnchor {
   selectedText: string;
@@ -22,6 +24,11 @@ interface CommentSidebarProps {
   onCommentClick: (commentId: string) => void;
   onDelete: (commentId: string) => void;
   onHeightMeasured: (commentId: string, height: number) => void;
+  pendingForm?: {
+    selectedText: string;
+    onSubmit: (text: string) => void;
+    onCancel: () => void;
+  } | null;
 }
 
 function formatTimestamp(isoString: string): string {
@@ -41,7 +48,7 @@ function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength) + '...';
 }
 
-export default function CommentSidebar({ comments, positions, highlightedCommentId, onCommentClick, onDelete, onHeightMeasured }: CommentSidebarProps) {
+export default function CommentSidebar({ comments, positions, highlightedCommentId, onCommentClick, onDelete, onHeightMeasured, pendingForm }: CommentSidebarProps) {
   const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   useEffect(() => {
@@ -59,9 +66,9 @@ export default function CommentSidebar({ comments, positions, highlightedComment
     });
 
     return () => observer.disconnect();
-  }, [comments, onHeightMeasured]);
+  }, [comments, pendingForm, onHeightMeasured]);
 
-  if (comments.length === 0) {
+  if (comments.length === 0 && !pendingForm) {
     return (
       <div className={styles.container}>
         <div className={styles.emptyState}>No comments yet</div>
@@ -112,6 +119,32 @@ export default function CommentSidebar({ comments, positions, highlightedComment
             </button>
           </li>
         ))}
+        {pendingForm && (
+          <li
+            key={PENDING_COMMENT_ID}
+            className={`${styles.commentItem} ${styles.formItem}`}
+            data-comment-id={PENDING_COMMENT_ID}
+            ref={(el) => {
+              if (el) {
+                cardRefs.current.set(PENDING_COMMENT_ID, el);
+              } else {
+                cardRefs.current.delete(PENDING_COMMENT_ID);
+              }
+            }}
+            style={{
+              position: 'absolute',
+              top: `${positions.get(PENDING_COMMENT_ID) ?? 0}px`,
+              left: 0,
+              right: 0,
+            }}
+          >
+            <CommentForm
+              selectedText={pendingForm.selectedText}
+              onSubmit={pendingForm.onSubmit}
+              onCancel={pendingForm.onCancel}
+            />
+          </li>
+        )}
       </ul>
     </div>
   );

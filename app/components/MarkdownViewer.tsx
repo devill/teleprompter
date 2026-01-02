@@ -8,6 +8,7 @@ interface TextSelectionData {
   selectedText: string;
   contextBefore: string;
   contextAfter: string;
+  selectionTop: number;
 }
 
 interface Comment {
@@ -132,12 +133,21 @@ export default function MarkdownViewer({
       selectionStart + selectedText.length + 50
     );
 
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    const containerRect = containerRef?.current?.getBoundingClientRect();
+    const scrollTop = containerRef?.current?.scrollTop ?? 0;
+    const selectionTop = containerRect
+      ? rect.top - containerRect.top + scrollTop
+      : 0;
+
     onTextSelect({
       selectedText,
       contextBefore,
       contextAfter,
+      selectionTop,
     });
-  }, [content, onTextSelect]);
+  }, [content, onTextSelect, containerRef]);
 
   const highlightRegions = useMemo((): HighlightRegion[] => {
     return comments
