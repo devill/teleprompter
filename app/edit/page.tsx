@@ -50,6 +50,7 @@ function EditPageContent() {
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
+  const [newlyCreatedCommentId, setNewlyCreatedCommentId] = useState<string | null>(null);
 
   const viewerContainerRef = useRef<HTMLElement | null>(null);
 
@@ -106,18 +107,12 @@ function EditPageContent() {
 
   const handleTextSelect = useCallback((data: TextSelectionData) => {
     setSelectedAnchor(data);
-    setShowCommentForm(false);
-  }, []);
-
-  const handleAddCommentClick = useCallback(() => {
-    if (!selectedAnchor) return;
-
     if (!userName) {
       setShowNamePrompt(true);
     } else {
       setShowCommentForm(true);
     }
-  }, [selectedAnchor, userName]);
+  }, [userName]);
 
   const handleNameSubmit = useCallback((name: string) => {
     localStorage.setItem(USERNAME_STORAGE_KEY, name);
@@ -151,9 +146,12 @@ function EditPageContent() {
       });
 
       if (response.ok) {
+        setNewlyCreatedCommentId(newComment.id);
         setComments(updatedComments);
         setSelectedAnchor(null);
         setShowCommentForm(false);
+        // Clear newly created flag after animation completes
+        setTimeout(() => setNewlyCreatedCommentId(null), 200);
       }
     } catch {
       // Handle error silently for MVP
@@ -240,20 +238,6 @@ function EditPageContent() {
           )}
         </main>
         <aside className={styles.sidebar}>
-          {selectedAnchor && !showCommentForm && (
-            <div className={styles.selectionActions}>
-              <div className={styles.selectedText}>
-                &quot;{selectedAnchor.selectedText.slice(0, 100)}
-                {selectedAnchor.selectedText.length > 100 ? '...' : ''}&quot;
-              </div>
-              <button
-                className={styles.addCommentButton}
-                onClick={handleAddCommentClick}
-              >
-                Add Comment
-              </button>
-            </div>
-          )}
           <CommentSidebar
             comments={sortedComments}
             positions={positions}
@@ -266,6 +250,7 @@ function EditPageContent() {
               onSubmit: handleCommentSubmit,
               onCancel: handleCommentCancel,
             } : null}
+            newlyCreatedCommentId={newlyCreatedCommentId}
           />
         </aside>
       </div>

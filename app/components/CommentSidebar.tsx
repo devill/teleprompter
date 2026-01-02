@@ -29,6 +29,7 @@ interface CommentSidebarProps {
     onSubmit: (text: string) => void;
     onCancel: () => void;
   } | null;
+  newlyCreatedCommentId?: string | null;
 }
 
 function formatTimestamp(isoString: string): string {
@@ -48,7 +49,7 @@ function truncateText(text: string, maxLength: number): string {
   return text.slice(0, maxLength) + '...';
 }
 
-export default function CommentSidebar({ comments, positions, highlightedCommentId, onCommentClick, onDelete, onHeightMeasured, pendingForm }: CommentSidebarProps) {
+export default function CommentSidebar({ comments, positions, highlightedCommentId, onCommentClick, onDelete, onHeightMeasured, pendingForm, newlyCreatedCommentId }: CommentSidebarProps) {
   const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
   useEffect(() => {
@@ -79,11 +80,14 @@ export default function CommentSidebar({ comments, positions, highlightedComment
   return (
     <div className={styles.container}>
       <ul className={styles.commentList}>
-        {comments.map((comment) => (
+        {comments.map((comment) => {
+          const isNew = comment.id === newlyCreatedCommentId;
+          return (
           <li
             key={comment.id}
-            className={styles.commentItem}
+            className={`${styles.commentItem} ${isNew ? styles.newItem : ''}`}
             data-comment-id={comment.id}
+            data-new={isNew ? 'true' : undefined}
             ref={(el) => {
               if (el) {
                 cardRefs.current.set(comment.id, el);
@@ -118,7 +122,8 @@ export default function CommentSidebar({ comments, positions, highlightedComment
               </svg>
             </button>
           </li>
-        ))}
+        );
+        })}
         {pendingForm && (
           <li
             key={PENDING_COMMENT_ID}

@@ -75,6 +75,11 @@
   transition: top 0.2s ease-out;
 }
 
+/* Newly created comments: no position transition, just fade in */
+.newItem {
+  transition: none;
+}
+
 .deleteButton {
   position: absolute;
   top: var(--space-2);
@@ -106,34 +111,30 @@
   opacity: 1;
 }
 
-/* Form entrance animation */
+/* Form entrance animation - fade only, space opens via positioning */
 @keyframes formEnter {
   from {
     opacity: 0;
-    transform: translateY(-8px);
   }
   to {
     opacity: 1;
-    transform: translateY(0);
   }
 }
 
 .formItem {
-  animation: formEnter 0.2s ease-out;
+  animation: formEnter 0.15s ease-out;
 }
 
-/* New comment card entrance animation */
+/* New comment card entrance - fade only, replaces form in place */
 @keyframes cardEnter {
   from {
     opacity: 0;
-    transform: scale(0.95);
   }
   to {
     opacity: 1;
-    transform: scale(1);
   }
 }
 
 .commentItem[data-new="true"] {
-  animation: cardEnter 0.2s ease-out;
+  animation: cardEnter 0.15s ease-out;
 }

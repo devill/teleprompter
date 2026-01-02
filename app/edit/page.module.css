@@ -56,47 +56,6 @@
   font-style: italic;
 }
 
-.selectionActions {
-  background-color: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  padding: var(--space-4);
-  margin-bottom: var(--space-4);
-  box-shadow: var(--shadow-sm);
-}
-
-.selectedText {
-  font-family: var(--font-serif);
-  font-size: var(--text-sm);
-  font-style: italic;
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-3);
-  word-break: break-word;
-  line-height: var(--leading-relaxed);
-}
-
-.addCommentButton {
-  width: 100%;
-  padding: var(--space-3) var(--space-4);
-  font-family: var(--font-sans);
-  font-size: var(--text-sm);
-  font-weight: 500;
-  color: var(--color-accent-text);
-  background-color: var(--color-accent);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  transition: background-color var(--transition-base), transform var(--transition-fast);
-}
-
-.addCommentButton:hover {
-  background-color: var(--color-accent-hover);
-}
-
-.addCommentButton:active {
-  transform: translateY(1px);
-}
-
 .loading {
   display: flex;
   justify-content: center;
