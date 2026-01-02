@@ -38,6 +38,11 @@
   box-shadow: var(--shadow-sm);
 }
 
+.commentCard.highlighted {
+  border-color: var(--color-accent);
+  background-color: var(--color-accent-subtle);
+}
+
 .commentHeader {
   display: flex;
   justify-content: space-between;
@@ -62,4 +67,39 @@
   font-size: var(--text-sm);
   line-height: var(--leading-relaxed);
   color: var(--color-text-secondary);
+}
+
+.commentItem {
+  position: relative;
+}
+
+.deleteButton {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity var(--transition-fast), background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.commentItem:hover .deleteButton {
+  opacity: 1;
+}
+
+.deleteButton:hover {
+  background-color: var(--color-error-bg);
+  color: var(--color-error);
+}
+
+.deleteButton:focus-visible {
+  opacity: 1;
 }

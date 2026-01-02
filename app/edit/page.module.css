@@ -24,6 +24,12 @@
   max-width: 50%;
 }
 
+.headerControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
 .content {
   display: flex;
   flex: 1;

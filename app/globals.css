@@ -109,56 +109,53 @@
 /* ========================================
    DARK MODE COLORS
    Warm dark palette, easy on the eyes
+   Applied via data-theme attribute for manual control
    ======================================== */
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    /* Backgrounds */
-    --color-bg: #1A1816;               /* Main background - warm dark */
-    --color-bg-elevated: #242220;      /* Cards, modals */
-    --color-bg-subtle: #201E1C;        /* Subtle backgrounds */
-    --color-bg-muted: #2C2926;         /* Muted backgrounds */
+[data-theme="dark"] {
+  /* Backgrounds */
+  --color-bg: #1A1816;               /* Main background - warm dark */
+  --color-bg-elevated: #242220;      /* Cards, modals */
+  --color-bg-subtle: #201E1C;        /* Subtle backgrounds */
+  --color-bg-muted: #2C2926;         /* Muted backgrounds */
 
-    /* Text Colors */
-    --color-text: #E8E4DD;             /* Primary text - warm off-white */
-    --color-text-secondary: #B8B2A8;   /* Secondary text */
-    --color-text-muted: #8A857C;       /* Muted text */
-    --color-text-inverted: #1A1816;    /* Text on light backgrounds */
+  /* Text Colors */
+  --color-text: #E8E4DD;             /* Primary text - warm off-white */
+  --color-text-secondary: #B8B2A8;   /* Secondary text */
+  --color-text-muted: #8A857C;       /* Muted text */
+  --color-text-inverted: #1A1816;    /* Text on light backgrounds */
 
-    /* Borders */
-    --color-border: #3D3935;           /* Default borders */
-    --color-border-subtle: #2F2C28;    /* Subtle borders */
-    --color-border-strong: #524D47;    /* Strong borders */
+  /* Borders */
+  --color-border: #3D3935;           /* Default borders */
+  --color-border-subtle: #2F2C28;    /* Subtle borders */
+  --color-border-strong: #524D47;    /* Strong borders */
 
-    /* Accent Color - Lighter teal for dark mode */
-    --color-accent: #5A9A8A;
-    --color-accent-hover: #6AADA0;
-    --color-accent-subtle: #1F2F2B;
-    --color-accent-text: #1A1816;
+  /* Accent Color - Lighter teal for dark mode */
+  --color-accent: #5A9A8A;
+  --color-accent-hover: #6AADA0;
+  --color-accent-subtle: #1F2F2B;
+  --color-accent-text: #1A1816;
 
-    /* Semantic Colors */
-    --color-success: #5A9A7A;
-    --color-warning: #D4A84B;
-    --color-error: #D4665A;
-    --color-error-bg: #2A1F1E;
+  /* Semantic Colors */
+  --color-success: #5A9A7A;
+  --color-warning: #D4A84B;
+  --color-error: #D4665A;
+  --color-error-bg: #2A1F1E;
 
-    /* Interactive States */
-    --color-focus-ring: rgba(90, 154, 138, 0.5);
+  /* Interactive States */
+  --color-focus-ring: rgba(90, 154, 138, 0.5);
 
-    /* Shadows - Darker for dark mode */
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
-    --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
-    --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
-    --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.35);
+  /* Shadows - Darker for dark mode */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.2);
+  --shadow-md: 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow-lg: 0 4px 16px rgba(0, 0, 0, 0.3);
+  --shadow-xl: 0 8px 32px rgba(0, 0, 0, 0.35);
 
-    /* Legacy compatibility */
-    --background: var(--color-bg);
-    --foreground: var(--color-text);
-  }
+  /* Legacy compatibility */
+  --background: var(--color-bg);
+  --foreground: var(--color-text);
 
-  html {
-    color-scheme: dark;
-  }
+  color-scheme: dark;
 }
 
 /* ============================================

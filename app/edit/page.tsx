@@ -6,6 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import MarkdownViewer from '../components/MarkdownViewer';
 import RawViewer from '../components/RawViewer';
 import ViewToggle from '../components/ViewToggle';
+import ThemeToggle from '../components/ThemeToggle';
 import CommentSidebar from '../components/CommentSidebar';
 import CommentForm from '../components/CommentForm';
 import NamePrompt from '../components/NamePrompt';
@@ -46,6 +47,7 @@ function EditPageContent() {
   const [userName, setUserName] = useState<string | null>(null);
   const [showNamePrompt, setShowNamePrompt] = useState(false);
   const [showCommentForm, setShowCommentForm] = useState(false);
+  const [highlightedCommentId, setHighlightedCommentId] = useState<string | null>(null);
 
   useEffect(() => {
     const storedName = localStorage.getItem(USERNAME_STORAGE_KEY);
@@ -151,12 +153,35 @@ function EditPageContent() {
   }, []);
 
   const handleCommentClick = useCallback((commentId: string) => {
-    const comment = comments.find(c => c.id === commentId);
-    if (comment) {
-      // For now, just log - scroll-to-text will be implemented in polish phase
-      console.log('Clicked comment:', comment.anchor.selectedText);
+    setHighlightedCommentId(commentId);
+  }, []);
+
+  const handleHighlightClick = useCallback((commentId: string) => {
+    setHighlightedCommentId(commentId);
+  }, []);
+
+  const handleCommentDelete = useCallback(async (commentId: string) => {
+    if (!filePath) return;
+
+    const updatedComments = comments.filter(c => c.id !== commentId);
+
+    try {
+      const response = await fetch(`/api/meta?path=${encodeURIComponent(filePath)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comments: updatedComments }),
+      });
+
+      if (response.ok) {
+        setComments(updatedComments);
+        if (highlightedCommentId === commentId) {
+          setHighlightedCommentId(null);
+        }
+      }
+    } catch {
+      // Handle error silently for MVP
     }
-  }, [comments]);
+  }, [filePath, comments, highlightedCommentId]);
 
   if (loading) {
     return <div className={styles.loading}>Loading...</div>;
@@ -175,14 +200,29 @@ function EditPageContent() {
     <div className={styles.page}>
       <header className={styles.header}>
         <span className={styles.filePath}>{filePath}</span>
-        <ViewToggle view={viewType} onViewChange={setViewType} />
+        <div className={styles.headerControls}>
+          <ViewToggle view={viewType} onViewChange={setViewType} />
+          <ThemeToggle />
+        </div>
       </header>
       <div className={styles.content}>
         <main className={styles.mainContent}>
           {viewType === 'rendered' ? (
-            <MarkdownViewer content={content} onTextSelect={handleTextSelect} />
+            <MarkdownViewer
+              content={content}
+              comments={comments}
+              highlightedCommentId={highlightedCommentId}
+              onTextSelect={handleTextSelect}
+              onHighlightClick={handleHighlightClick}
+            />
           ) : (
-            <RawViewer content={content} onTextSelect={handleTextSelect} />
+            <RawViewer
+              content={content}
+              comments={comments}
+              highlightedCommentId={highlightedCommentId}
+              onTextSelect={handleTextSelect}
+              onHighlightClick={handleHighlightClick}
+            />
           )}
         </main>
         <aside className={styles.sidebar}>
@@ -208,7 +248,12 @@ function EditPageContent() {
                   </button>
                 </div>
               )}
-              <CommentSidebar comments={comments} onCommentClick={handleCommentClick} />
+              <CommentSidebar
+                comments={comments}
+                highlightedCommentId={highlightedCommentId}
+                onCommentClick={handleCommentClick}
+                onDelete={handleCommentDelete}
+              />
             </>
           )}
         </aside>

@@ -11,3 +11,19 @@
   color: var(--color-text);
   min-height: 100%;
 }
+
+.commentHighlight {
+  background-color: var(--color-accent-subtle);
+  border-radius: 2px;
+  cursor: pointer;
+  transition: background-color var(--transition-fast);
+}
+
+.commentHighlight:hover {
+  background-color: var(--color-bg-muted);
+}
+
+.commentHighlightActive {
+  background-color: var(--color-accent-subtle);
+  box-shadow: 0 0 0 2px var(--color-accent);
+}

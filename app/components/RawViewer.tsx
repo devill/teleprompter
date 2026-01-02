@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import styles from './RawViewer.module.css';
 
 interface TextSelectionData {
@@ -9,12 +9,44 @@ interface TextSelectionData {
   contextAfter: string;
 }
 
-interface RawViewerProps {
-  content: string;
-  onTextSelect: (data: TextSelectionData) => void;
+interface Comment {
+  id: string;
+  author: string;
+  text: string;
+  anchor: TextSelectionData;
+  createdAt: string;
 }
 
-export default function RawViewer({ content, onTextSelect }: RawViewerProps) {
+interface RawViewerProps {
+  content: string;
+  comments: Comment[];
+  highlightedCommentId: string | null;
+  onTextSelect: (data: TextSelectionData) => void;
+  onHighlightClick: (commentId: string) => void;
+}
+
+function findTextPosition(content: string, anchor: TextSelectionData): number {
+  const fullPattern = anchor.contextBefore + anchor.selectedText + anchor.contextAfter;
+  const patternIndex = content.indexOf(fullPattern);
+  if (patternIndex !== -1) {
+    return patternIndex + anchor.contextBefore.length;
+  }
+  return content.indexOf(anchor.selectedText);
+}
+
+interface HighlightRegion {
+  start: number;
+  end: number;
+  commentId: string;
+}
+
+export default function RawViewer({
+  content,
+  comments,
+  highlightedCommentId,
+  onTextSelect,
+  onHighlightClick,
+}: RawViewerProps) {
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
     if (!selection || selection.isCollapsed) {
@@ -44,9 +76,61 @@ export default function RawViewer({ content, onTextSelect }: RawViewerProps) {
     });
   }, [content, onTextSelect]);
 
+  const highlightRegions = useMemo((): HighlightRegion[] => {
+    return comments
+      .map((comment) => {
+        const start = findTextPosition(content, comment.anchor);
+        if (start === -1) return null;
+        return {
+          start,
+          end: start + comment.anchor.selectedText.length,
+          commentId: comment.id,
+        };
+      })
+      .filter((region): region is HighlightRegion => region !== null)
+      .sort((a, b) => a.start - b.start);
+  }, [content, comments]);
+
+  const renderContentWithHighlights = useMemo(() => {
+    if (highlightRegions.length === 0) {
+      return content;
+    }
+
+    const segments: React.ReactNode[] = [];
+    let lastEnd = 0;
+
+    highlightRegions.forEach((region, index) => {
+      if (region.start > lastEnd) {
+        segments.push(content.slice(lastEnd, region.start));
+      }
+
+      const isHighlighted = region.commentId === highlightedCommentId;
+      segments.push(
+        <span
+          key={`highlight-${index}`}
+          className={`${styles.commentHighlight} ${isHighlighted ? styles.commentHighlightActive : ''}`}
+          onClick={(e) => {
+            e.stopPropagation();
+            onHighlightClick(region.commentId);
+          }}
+        >
+          {content.slice(region.start, region.end)}
+        </span>
+      );
+
+      lastEnd = region.end;
+    });
+
+    if (lastEnd < content.length) {
+      segments.push(content.slice(lastEnd));
+    }
+
+    return segments;
+  }, [content, highlightRegions, highlightedCommentId, onHighlightClick]);
+
   return (
     <pre className={styles.container} onMouseUp={handleMouseUp}>
-      {content}
+      {renderContentWithHighlights}
     </pre>
   );
 }
