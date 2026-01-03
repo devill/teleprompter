@@ -234,3 +234,25 @@ a:hover {
 ::-webkit-scrollbar-thumb:hover {
   background: var(--color-text-muted);
 }
+
+/* ============================================
+   TELEPROMPTER MODE
+   High contrast for reading from a distance
+   ============================================ */
+
+[data-teleprompter="true"] {
+  --teleprompter-bg: #000000;
+  --teleprompter-text: #FFFFFF;
+  --teleprompter-text-muted: rgba(255, 255, 255, 0.6);
+  --teleprompter-accent: #4A9EFF;
+  --teleprompter-highlight: rgba(74, 158, 255, 0.3);
+}
+
+/* Default values when not in teleprompter mode */
+:root {
+  --teleprompter-bg: #000000;
+  --teleprompter-text: #FFFFFF;
+  --teleprompter-text-muted: rgba(255, 255, 255, 0.6);
+  --teleprompter-accent: #4A9EFF;
+  --teleprompter-highlight: rgba(74, 158, 255, 0.3);
+}

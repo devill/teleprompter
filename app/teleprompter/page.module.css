@@ -1,0 +1,43 @@
+.container {
+  position: fixed;
+  inset: 0;
+  background: var(--teleprompter-bg);
+  color: var(--teleprompter-text);
+  overflow-y: auto;
+  scroll-behavior: smooth;
+}
+
+.content {
+  max-width: 80ch;
+  margin: 0 auto;
+  padding: var(--space-16) var(--space-8);
+  font-family: var(--font-serif);
+  font-size: 48px;
+  line-height: 1.5;
+  text-align: center;
+  white-space: pre-wrap;
+}
+
+.error {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--teleprompter-bg);
+  color: var(--color-error);
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+}
+
+.loading {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--teleprompter-bg);
+  color: var(--teleprompter-text);
+  font-family: var(--font-sans);
+  font-size: var(--text-xl);
+}
