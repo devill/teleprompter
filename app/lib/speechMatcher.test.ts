@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   createMatcherState,
   processSpokenWord,
-  checkSectionJump,
-  matchSpokenText,
+  searchForJumpTarget,
+  applyJump,
   type MatcherState,
 } from './speechMatcher';
 import type { SectionAnchor } from './sectionParser';
@@ -16,7 +16,6 @@ describe('createMatcherState', () => {
     expect(state.words).toEqual([]);
     expect(state.lineCount).toBe(0);
     expect(state.sectionAnchors).toEqual([]);
-    expect(state.lostCounter).toBe(0);
   });
 
   it('flattens content into words with line references', () => {
@@ -89,22 +88,12 @@ describe('processSpokenWord', () => {
     expect(newState.currentWordIndex).toBe(2);
   });
 
-  it('increments lost counter when no match found', () => {
+  it('returns null when no match found in look-ahead', () => {
     const state = createTestState('The quick brown fox');
     const { result, newState } = processSpokenWord('elephant', state);
 
     expect(result).toBeNull();
-    expect(newState.lostCounter).toBe(1);
     expect(newState.currentWordIndex).toBe(0); // Didn't move
-  });
-
-  it('resets lost counter on match', () => {
-    let state = createTestState('The quick brown fox');
-    state = { ...state, lostCounter: 5 };
-
-    const { newState } = processSpokenWord('the', state);
-
-    expect(newState.lostCounter).toBe(0);
   });
 
   it('handles number variants (5 matches five)', () => {
@@ -133,135 +122,86 @@ describe('processSpokenWord', () => {
   });
 });
 
-describe('checkSectionJump', () => {
-  it('does not jump if not lost for long enough', () => {
-    const anchors: SectionAnchor[] = [
-      {
-        id: 'lesson-5',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 5',
-        normalizedText: 'lesson 5',
-        keywords: ['lesson', '5', 'five', 'number'],
-        charIndex: 0,
-      },
-    ];
-    let state = createMatcherState('Some text', anchors);
-    state = { ...state, lostCounter: 2 }; // Below threshold (threshold is 5)
-
-    const { result } = checkSectionJump(['lesson', 'five'], state);
-
-    expect(result).toBeNull();
-  });
-
-  it('jumps to section when lost and keywords match', () => {
-    const anchors: SectionAnchor[] = [
-      {
-        id: 'lesson-5',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 5',
-        normalizedText: 'lesson 5',
-        keywords: ['lesson', '5', 'five', 'number'],
-        charIndex: 0,
-      },
-    ];
-    let state = createMatcherState('Some text here', anchors);
-    state = { ...state, lostCounter: 20 }; // Above threshold
-
-    const { result } = checkSectionJump(['lesson', 'five'], state);
-
-    expect(result).not.toBeNull();
-    expect(result!.matchType).toBe('section_jump');
-  });
-
-  it('requires 2+ keywords to trigger jump', () => {
-    const anchors: SectionAnchor[] = [
-      {
-        id: 'lesson-5',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 5',
-        normalizedText: 'lesson 5',
-        keywords: ['lesson', '5', 'five', 'number'],
-        charIndex: 0,
-      },
-    ];
-    let state = createMatcherState('Some text', anchors);
-    state = { ...state, lostCounter: 20 };
-
-    // Only one keyword matches
-    const { result } = checkSectionJump(['lesson', 'random'], state);
-
-    expect(result).toBeNull();
-  });
-
-  it('picks best matching anchor when multiple have same common keywords', () => {
-    // This tests "lesson number two" - all lessons match "lesson" and "number",
-    // but Lesson 2 also matches "two" for a higher score
-    const anchors: SectionAnchor[] = [
-      {
-        id: 'lesson-1',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 1',
-        normalizedText: 'lesson 1',
-        keywords: ['lesson', '1', 'one', 'number'],
-        charIndex: 0,
-      },
-      {
-        id: 'lesson-2',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 2',
-        normalizedText: 'lesson 2',
-        keywords: ['lesson', '2', 'two', 'number'],
-        charIndex: 50,
-      },
-      {
-        id: 'lesson-3',
-        type: 'numbered',
-        level: 0,
-        text: 'Lesson 3',
-        normalizedText: 'lesson 3',
-        keywords: ['lesson', '3', 'three', 'number'],
-        charIndex: 100,
-      },
-    ];
-    // Content with all three lessons
-    const content = 'Lesson 1 content here\nLesson 2 content here\nLesson 3 content here';
-    let state = createMatcherState(content, anchors);
-    state = { ...state, lostCounter: 20 };
-
-    // Say "lesson number two" - should match Lesson 2 with highest score
-    const { result } = checkSectionJump(['lesson', 'number', 'two'], state);
-
-    expect(result).not.toBeNull();
-    expect(result!.matchType).toBe('section_jump');
-    expect(result!.lineIndex).toBe(1); // Lesson 2 is on line index 1
-  });
-});
-
-describe('matchSpokenText (legacy API)', () => {
-  it('returns null for empty spoken words', () => {
-    const state = createMatcherState('Hello world', []);
-    const result = matchSpokenText([], state);
+describe('searchForJumpTarget', () => {
+  it('returns null for empty target words', () => {
+    const state = createMatcherState('Some text here', []);
+    const result = searchForJumpTarget([], state);
 
     expect(result).toBeNull();
   });
 
   it('returns null for empty document', () => {
     const state = createMatcherState('', []);
-    const result = matchSpokenText(['hello'], state);
+    const result = searchForJumpTarget(['lesson', 'one'], state);
 
     expect(result).toBeNull();
   });
 
-  it('processes last word and returns match', () => {
-    const state = createMatcherState('The quick brown fox', []);
-    const result = matchSpokenText(['some', 'words', 'the'], state);
+  it('finds matching text in document', () => {
+    const content = 'Introduction text\nLesson one content\nConclusion';
+    const state = createMatcherState(content, []);
+    const result = searchForJumpTarget(['lesson', 'one'], state);
 
     expect(result).not.toBeNull();
-    expect(result!.matchType).toBe('advance');
+    expect(result!.lineIndex).toBe(1);
+  });
+
+  it('scores headers higher than regular text', () => {
+    const anchors: SectionAnchor[] = [
+      {
+        id: 'lesson-1',
+        type: 'heading',
+        level: 2,
+        text: 'Lesson 1',
+        normalizedText: 'lesson 1',
+        keywords: ['lesson', '1', 'one'],
+        charIndex: 20,
+      },
+    ];
+    const content = 'Some lesson text\nLesson 1 Header\nMore lesson content';
+    const state = createMatcherState(content, anchors);
+    const result = searchForJumpTarget(['lesson'], state);
+
+    expect(result).not.toBeNull();
+    // Should prefer the header line (line 1) over regular text
+    expect(result!.lineIndex).toBe(1);
+  });
+
+  it('gives bonus for consecutive word matches', () => {
+    const content = 'Lesson two content\nTwo lesson unrelated\nAnother lesson two here';
+    const state = createMatcherState(content, []);
+    const result = searchForJumpTarget(['lesson', 'two'], state);
+
+    expect(result).not.toBeNull();
+    // First line has "lesson two" consecutively
+    expect(result!.lineIndex).toBe(0);
+  });
+
+  it('handles number word equivalents', () => {
+    const content = 'Chapter 1\nChapter 2\nChapter 3';
+    const state = createMatcherState(content, []);
+    const result = searchForJumpTarget(['chapter', 'two'], state);
+
+    expect(result).not.toBeNull();
+    expect(result!.lineIndex).toBe(1); // "2" matches "two"
+  });
+});
+
+describe('applyJump', () => {
+  it('updates state to jump position', () => {
+    const state = createMatcherState('Line one\nLine two\nLine three', []);
+    const jumpResult = {
+      lineIndex: 2,
+      globalWordIndex: 4,
+      score: 100,
+      matchedText: 'line three',
+    };
+
+    const { result, newState } = applyJump(jumpResult, state);
+
+    expect(result.matchType).toBe('jump');
+    expect(result.lineIndex).toBe(2);
+    expect(result.globalWordIndex).toBe(4);
+    expect(newState.currentWordIndex).toBe(4);
   });
 });

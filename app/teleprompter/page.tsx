@@ -50,7 +50,13 @@ function TeleprompterContent() {
     scrollToLine(result.lineIndex);
   }, [scrollToLine]);
 
-  const { processTranscript, currentWordIndex, currentLineIndex } = useTextMatcher({
+  const {
+    processTranscript,
+    currentWordIndex,
+    currentLineIndex,
+    jumpModeStatus,
+    jumpTargetText,
+  } = useTextMatcher({
     content,
     sectionAnchors,
     onMatch: handleMatch,
@@ -180,6 +186,8 @@ function TeleprompterContent() {
         isListening={isListening}
         interimTranscript={interimTranscript}
         error={speechError}
+        jumpModeStatus={jumpModeStatus}
+        jumpTargetText={jumpTargetText}
       />
     </>
   );

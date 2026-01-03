@@ -5,7 +5,7 @@ export interface MatchResult {
   lineIndex: number;
   wordIndex: number;         // Word position within the line
   globalWordIndex: number;   // Word position in entire document
-  matchType: 'advance' | 'section_jump';
+  matchType: 'advance' | 'jump';
 }
 
 export interface DocumentWord {
@@ -20,12 +20,19 @@ export interface MatcherState {
   words: DocumentWord[];     // Flattened word list
   lineCount: number;
   sectionAnchors: SectionAnchor[];
-  lostCounter: number;       // How many consecutive non-matches
 }
 
-const LOOK_AHEAD_WORDS = 5;      // How far ahead to look for matches
-const LOST_THRESHOLD = 5;        // How many non-matches before considering section jump (lowered for testing)
-const MIN_SECTION_KEYWORDS = 2;
+export interface JumpSearchResult {
+  lineIndex: number;
+  globalWordIndex: number;
+  score: number;
+  matchedText: string;
+}
+
+const LOOK_AHEAD_WORDS = 5;
+const HEADER_BONUS = 50;
+const NUMBERED_SECTION_BONUS = 30;
+const MAX_DISTANCE_PENALTY = 20;
 
 export function createMatcherState(
   content: string,
@@ -53,7 +60,6 @@ export function createMatcherState(
     words,
     lineCount: lines.length,
     sectionAnchors,
-    lostCounter: 0,
   };
 }
 
@@ -74,7 +80,6 @@ export function processSpokenWord(
 
   for (let i = startIdx; i < endIdx; i++) {
     if (wordsMatch(normalized, state.words[i].word)) {
-      // Found a match - advance to this position + 1
       const matchedWord = state.words[i];
       const newWordIndex = i + 1;
 
@@ -88,65 +93,6 @@ export function processSpokenWord(
         newState: {
           ...state,
           currentWordIndex: newWordIndex,
-          lostCounter: 0,  // Reset lost counter on match
-        },
-      };
-    }
-  }
-
-  // No match found - increment lost counter but don't move
-  const newLostCounter = state.lostCounter + 1;
-
-  return {
-    result: null,
-    newState: {
-      ...state,
-      lostCounter: newLostCounter,
-    },
-  };
-}
-
-// Check if we should jump to a section (when lost and section keywords detected)
-export function checkSectionJump(
-  recentWords: string[],
-  state: MatcherState
-): { result: MatchResult | null; newState: MatcherState } {
-  const normalizedWords = recentWords.map(w => tokenize(w)[0] || w.toLowerCase()).filter(Boolean);
-
-  // Only consider section jump if we've been lost for a while
-  if (state.lostCounter < LOST_THRESHOLD) {
-    return { result: null, newState: state };
-  }
-
-  // Find the BEST matching anchor, not just the first one that meets minimum
-  let bestAnchor: SectionAnchor | null = null;
-  let bestScore = 0;
-
-  for (const anchor of state.sectionAnchors) {
-    const matchingKeywords = countMatchingKeywords(normalizedWords, anchor.keywords);
-
-    if (matchingKeywords >= MIN_SECTION_KEYWORDS && matchingKeywords > bestScore) {
-      bestScore = matchingKeywords;
-      bestAnchor = anchor;
-    }
-  }
-
-  if (bestAnchor) {
-    const sectionLineIndex = findLineForSection(bestAnchor, state);
-    const sectionWordIndex = state.words.findIndex(w => w.lineIndex === sectionLineIndex);
-
-    if (sectionWordIndex >= 0) {
-      return {
-        result: {
-          lineIndex: sectionLineIndex,
-          wordIndex: 0,
-          globalWordIndex: sectionWordIndex,
-          matchType: 'section_jump',
-        },
-        newState: {
-          ...state,
-          currentWordIndex: sectionWordIndex,
-          lostCounter: 0,
         },
       };
     }
@@ -155,26 +101,151 @@ export function checkSectionJump(
   return { result: null, newState: state };
 }
 
-// Legacy function for compatibility - processes multiple words
-export function matchSpokenText(
-  spokenWords: string[],
+// Search document for jump targets matching spoken text
+export function searchForJumpTarget(
+  targetWords: string[],
   state: MatcherState
-): MatchResult | null {
-  if (spokenWords.length === 0 || state.words.length === 0) {
+): JumpSearchResult | null {
+  if (targetWords.length === 0 || state.words.length === 0) {
     return null;
   }
 
-  // Process the last spoken word
-  const lastWord = spokenWords[spokenWords.length - 1];
-  const { result } = processSpokenWord(lastWord, state);
+  const normalizedTarget = targetWords
+    .map(w => tokenize(w)[0] || w.toLowerCase())
+    .filter(Boolean);
 
-  if (result) {
-    return result;
+  if (normalizedTarget.length === 0) {
+    return null;
   }
 
-  // Check for section jump with recent words
-  const { result: sectionResult } = checkSectionJump(spokenWords.slice(-5), state);
-  return sectionResult;
+  // Group words by line for easier searching
+  const lineGroups = new Map<number, { words: string[]; firstWordIndex: number }>();
+  for (const word of state.words) {
+    if (!lineGroups.has(word.lineIndex)) {
+      lineGroups.set(word.lineIndex, { words: [], firstWordIndex: word.globalIndex });
+    }
+    lineGroups.get(word.lineIndex)!.words.push(word.word);
+  }
+
+  let bestMatch: JumpSearchResult | null = null;
+
+  for (const [lineIndex, { words: lineWords, firstWordIndex }] of lineGroups) {
+    const matchScore = scoreLineMatch(normalizedTarget, lineWords);
+
+    if (matchScore > 0) {
+      // Calculate bonuses
+      let totalScore = matchScore;
+      let matchedText = lineWords.slice(0, 6).join(' ');
+
+      // Header bonus
+      const isHeader = state.sectionAnchors.some(
+        anchor => anchor.type === 'heading' && findAnchorLine(anchor, lineGroups) === lineIndex
+      );
+      if (isHeader) {
+        totalScore += HEADER_BONUS;
+      }
+
+      // Numbered section bonus
+      const isNumberedSection = state.sectionAnchors.some(
+        anchor => anchor.type === 'numbered' && findAnchorLine(anchor, lineGroups) === lineIndex
+      );
+      if (isNumberedSection) {
+        totalScore += NUMBERED_SECTION_BONUS;
+      }
+
+      // Distance penalty (further away = lower score)
+      const distance = Math.abs(firstWordIndex - state.currentWordIndex);
+      const maxDistance = state.words.length;
+      const distancePenalty = (distance / maxDistance) * MAX_DISTANCE_PENALTY;
+      totalScore -= distancePenalty;
+
+      if (!bestMatch || totalScore > bestMatch.score) {
+        bestMatch = {
+          lineIndex,
+          globalWordIndex: firstWordIndex,
+          score: totalScore,
+          matchedText,
+        };
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+// Apply a jump result to the state
+export function applyJump(
+  jumpResult: JumpSearchResult,
+  state: MatcherState
+): { result: MatchResult; newState: MatcherState } {
+  return {
+    result: {
+      lineIndex: jumpResult.lineIndex,
+      wordIndex: 0,
+      globalWordIndex: jumpResult.globalWordIndex,
+      matchType: 'jump',
+    },
+    newState: {
+      ...state,
+      currentWordIndex: jumpResult.globalWordIndex,
+    },
+  };
+}
+
+// Score how well target words match a line
+function scoreLineMatch(targetWords: string[], lineWords: string[]): number {
+  let matchedCount = 0;
+  let consecutiveBonus = 0;
+  let lastMatchIndex = -2;
+
+  for (const target of targetWords) {
+    for (let i = 0; i < lineWords.length; i++) {
+      if (wordsMatch(target, lineWords[i])) {
+        matchedCount++;
+        // Bonus for consecutive matches
+        if (i === lastMatchIndex + 1) {
+          consecutiveBonus += 5;
+        }
+        lastMatchIndex = i;
+        break;
+      }
+    }
+  }
+
+  if (matchedCount === 0) {
+    return 0;
+  }
+
+  // Base score: percentage of target words matched
+  const matchRatio = matchedCount / targetWords.length;
+  const baseScore = matchRatio * 100;
+
+  return baseScore + consecutiveBonus;
+}
+
+// Find which line an anchor belongs to
+function findAnchorLine(
+  anchor: SectionAnchor,
+  lineGroups: Map<number, { words: string[]; firstWordIndex: number }>
+): number {
+  const anchorWords = tokenize(anchor.text);
+  let bestLine = 0;
+  let bestScore = 0;
+
+  for (const [lineIndex, { words }] of lineGroups) {
+    let score = 0;
+    for (const anchorWord of anchorWords) {
+      if (words.some(w => wordsMatch(anchorWord, w))) {
+        score++;
+      }
+    }
+    if (score > bestScore) {
+      bestScore = score;
+      bestLine = lineIndex;
+    }
+  }
+
+  return bestLine;
 }
 
 function wordsMatch(spoken: string, document: string): boolean {
@@ -187,11 +258,10 @@ function wordsMatch(spoken: string, document: string): boolean {
     return true;
   }
 
-  // Prefix match for longer words (handles partial recognition)
+  // Prefix match: speech recognition gave partial word (e.g., "beauti" for "beautiful")
+  // Only match if spoken is a prefix of document, not the reverse
+  // This prevents "lesson" matching "less"
   if (spoken.length >= 4 && document.startsWith(spoken)) {
-    return true;
-  }
-  if (document.length >= 4 && spoken.startsWith(document)) {
     return true;
   }
 
@@ -209,52 +279,6 @@ function numbersEquivalent(a: string, b: string): boolean {
   const normalizedA = normalizeNumber(a);
   const normalizedB = normalizeNumber(b);
   return normalizedA === b || normalizedB === a || normalizedA === normalizedB;
-}
-
-function countMatchingKeywords(spokenWords: string[], keywords: string[]): number {
-  let count = 0;
-  for (const keyword of keywords) {
-    for (const spoken of spokenWords) {
-      if (wordsMatch(spoken, keyword)) {
-        count++;
-        break;
-      }
-    }
-  }
-  return count;
-}
-
-function findLineForSection(anchor: SectionAnchor, state: MatcherState): number {
-  // Search for the anchor text in document lines to find the right line
-  const normalizedAnchorText = anchor.normalizedText.toLowerCase();
-  const anchorWords = normalizedAnchorText.split(/\s+/).filter(w => w);
-
-  // Find a line that contains the anchor keywords
-  let bestLineIndex = 0;
-  let bestMatchCount = 0;
-
-  const lineGroups = new Map<number, string[]>();
-  for (const word of state.words) {
-    if (!lineGroups.has(word.lineIndex)) {
-      lineGroups.set(word.lineIndex, []);
-    }
-    lineGroups.get(word.lineIndex)!.push(word.word);
-  }
-
-  for (const [lineIndex, lineWords] of lineGroups) {
-    let matchCount = 0;
-    for (const anchorWord of anchorWords) {
-      if (lineWords.some(w => w === anchorWord || wordsMatch(anchorWord, w))) {
-        matchCount++;
-      }
-    }
-    if (matchCount > bestMatchCount) {
-      bestMatchCount = matchCount;
-      bestLineIndex = lineIndex;
-    }
-  }
-
-  return bestLineIndex;
 }
 
 function levenshteinDistance(a: string, b: string): number {
