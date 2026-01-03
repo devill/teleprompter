@@ -89,7 +89,7 @@
   /* Accent Color - Deep teal, calm and literary */
   --color-accent: #2D5A4F;           /* Primary accent */
   --color-accent-hover: #245046;     /* Accent hover state */
-  --color-accent-subtle: #E8F0EE;    /* Subtle accent background */
+  --color-accent-subtle: #bcd5cf;    /* Subtle accent background */
   --color-accent-text: #FFFFFF;      /* Text on accent background */
 
   /* Semantic Colors */
@@ -133,7 +133,7 @@
   /* Accent Color - Lighter teal for dark mode */
   --color-accent: #5A9A8A;
   --color-accent-hover: #6AADA0;
-  --color-accent-subtle: #1F2F2B;
+  --color-accent-subtle: #245046;
   --color-accent-text: #1A1816;
 
   /* Semantic Colors */
