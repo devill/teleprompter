@@ -4,12 +4,11 @@ import { useState, useRef, useEffect } from 'react';
 import styles from './CommentForm.module.css';
 
 interface CommentFormProps {
-  selectedText: string;
   onSubmit: (commentText: string) => void;
   onCancel: () => void;
 }
 
-export default function CommentForm({ selectedText, onSubmit, onCancel }: CommentFormProps) {
+export default function CommentForm({ onSubmit, onCancel }: CommentFormProps) {
   const [commentText, setCommentText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -28,10 +27,6 @@ export default function CommentForm({ selectedText, onSubmit, onCancel }: Commen
 
   return (
     <div className={styles.container}>
-      <div className={styles.selectedTextPreview}>
-        <span className={styles.previewLabel}>Commenting on:</span>
-        <p className={styles.previewText}>{selectedText}</p>
-      </div>
       <form onSubmit={handleSubmit}>
         <textarea
           ref={textareaRef}

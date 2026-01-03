@@ -23,6 +23,7 @@ interface MarkdownViewerProps {
   content: string;
   comments: Comment[];
   highlightedCommentId: string | null;
+  pendingAnchor?: TextSelectionData | null;
   onTextSelect: (data: TextSelectionData) => void;
   onHighlightClick: (commentId: string) => void;
   onSelectionMade?: () => void;
@@ -109,6 +110,7 @@ export default function MarkdownViewer({
   content,
   comments,
   highlightedCommentId,
+  pendingAnchor,
   onTextSelect,
   onHighlightClick,
   onSelectionMade,
@@ -156,7 +158,7 @@ export default function MarkdownViewer({
   }, [content, onTextSelect, onSelectionMade, containerRef]);
 
   const highlightRegions = useMemo((): HighlightRegion[] => {
-    return comments
+    const regions = comments
       .map((comment) => {
         const start = findTextPosition(content, comment.anchor);
         if (start === -1) return null;
@@ -166,9 +168,22 @@ export default function MarkdownViewer({
           commentId: comment.id,
         };
       })
-      .filter((region): region is HighlightRegion => region !== null)
-      .sort((a, b) => a.start - b.start);
-  }, [content, comments]);
+      .filter((region): region is HighlightRegion => region !== null);
+
+    // Add pending selection as a highlight region
+    if (pendingAnchor) {
+      const start = findTextPosition(content, pendingAnchor);
+      if (start !== -1) {
+        regions.push({
+          start,
+          end: start + pendingAnchor.selectedText.length,
+          commentId: '__pending__',
+        });
+      }
+    }
+
+    return regions.sort((a, b) => a.start - b.start);
+  }, [content, comments, pendingAnchor]);
 
   const components = useMemo(() => {
     function renderWithHighlights(text: string): React.ReactNode {

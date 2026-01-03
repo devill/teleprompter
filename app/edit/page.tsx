@@ -233,6 +233,7 @@ function EditPageContent() {
               content={content}
               comments={comments}
               highlightedCommentId={highlightedCommentId}
+              pendingAnchor={showCommentForm ? selectedAnchor : null}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
               onSelectionMade={markSelectionMade}
@@ -243,6 +244,7 @@ function EditPageContent() {
               content={content}
               comments={comments}
               highlightedCommentId={highlightedCommentId}
+              pendingAnchor={showCommentForm ? selectedAnchor : null}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
               onSelectionMade={markSelectionMade}
@@ -259,7 +261,6 @@ function EditPageContent() {
             onDelete={handleCommentDelete}
             onHeightMeasured={setCommentHeight}
             pendingForm={showCommentForm && selectedAnchor ? {
-              selectedText: selectedAnchor.selectedText,
               onSubmit: handleCommentSubmit,
               onCancel: handleCommentCancel,
             } : null}

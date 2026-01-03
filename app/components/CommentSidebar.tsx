@@ -25,7 +25,6 @@ interface CommentSidebarProps {
   onDelete: (commentId: string) => void;
   onHeightMeasured: (commentId: string, height: number) => void;
   pendingForm?: {
-    selectedText: string;
     onSubmit: (text: string) => void;
     onCancel: () => void;
   } | null;
@@ -147,7 +146,6 @@ export default function CommentSidebar({ comments, positions, highlightedComment
             }}
           >
             <CommentForm
-              selectedText={pendingForm.selectedText}
               onSubmit={pendingForm.onSubmit}
               onCancel={pendingForm.onCancel}
             />
