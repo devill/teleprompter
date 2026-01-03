@@ -27,13 +27,6 @@ function formatTimestamp(isoString: string): string {
   });
 }
 
-function truncateText(text: string, maxLength: number): string {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return text.slice(0, maxLength) + '...';
-}
-
 export default function CommentSidebar({ comments, positions, highlightedCommentId, onCommentClick, onDelete, onHeightMeasured, pendingForm, newlyCreatedCommentId }: CommentSidebarProps) {
   const cardRefs = useRef<Map<string, HTMLLIElement>>(new Map());
 
@@ -96,7 +89,7 @@ export default function CommentSidebar({ comments, positions, highlightedComment
                 <span className={styles.author}>{comment.author}</span>
                 <span className={styles.timestamp}>{formatTimestamp(comment.createdAt)}</span>
               </div>
-              <p className={styles.textSnippet}>{truncateText(comment.text, 100)}</p>
+              <p className={styles.textSnippet}>{comment.text}</p>
             </button>
             <button
               data-comment-interactive
