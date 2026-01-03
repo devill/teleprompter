@@ -25,6 +25,7 @@ interface MarkdownViewerProps {
   highlightedCommentId: string | null;
   onTextSelect: (data: TextSelectionData) => void;
   onHighlightClick: (commentId: string) => void;
+  onSelectionMade?: () => void;
   containerRef?: React.RefObject<HTMLDivElement | null>;
 }
 
@@ -82,6 +83,7 @@ function HighlightedText({
     segments.push(
       <span
         key={`hl-${index}`}
+        data-comment-interactive
         className={`${styles.commentHighlight} ${isHighlighted ? styles.commentHighlightActive : ''}`}
         data-comment-id={region.commentId}
         onClick={(e) => {
@@ -109,6 +111,7 @@ export default function MarkdownViewer({
   highlightedCommentId,
   onTextSelect,
   onHighlightClick,
+  onSelectionMade,
   containerRef,
 }: MarkdownViewerProps) {
   const handleMouseUp = useCallback(() => {
@@ -141,13 +144,16 @@ export default function MarkdownViewer({
       ? rect.top - containerRect.top + scrollTop
       : 0;
 
+    // Signal that a selection was made
+    onSelectionMade?.();
+
     onTextSelect({
       selectedText,
       contextBefore,
       contextAfter,
       selectionTop,
     });
-  }, [content, onTextSelect, containerRef]);
+  }, [content, onTextSelect, onSelectionMade, containerRef]);
 
   const highlightRegions = useMemo((): HighlightRegion[] => {
     return comments

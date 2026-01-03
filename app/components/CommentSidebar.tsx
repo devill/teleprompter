@@ -103,6 +103,7 @@ export default function CommentSidebar({ comments, positions, highlightedComment
             }}
           >
             <button
+              data-comment-interactive
               className={`${styles.commentCard} ${highlightedCommentId === comment.id ? styles.highlighted : ''}`}
               onClick={() => onCommentClick(comment.id)}
             >
@@ -113,6 +114,7 @@ export default function CommentSidebar({ comments, positions, highlightedComment
               <p className={styles.textSnippet}>{truncateText(comment.text, 100)}</p>
             </button>
             <button
+              data-comment-interactive
               className={styles.deleteButton}
               onClick={() => onDelete(comment.id)}
               aria-label="Delete comment"
@@ -126,6 +128,7 @@ export default function CommentSidebar({ comments, positions, highlightedComment
         })}
         {pendingForm && (
           <li
+            data-comment-interactive
             key={PENDING_COMMENT_ID}
             className={`${styles.commentItem} ${styles.formItem}`}
             data-comment-id={PENDING_COMMENT_ID}

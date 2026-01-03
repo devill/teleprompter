@@ -24,6 +24,7 @@ interface RawViewerProps {
   highlightedCommentId: string | null;
   onTextSelect: (data: TextSelectionData) => void;
   onHighlightClick: (commentId: string) => void;
+  onSelectionMade?: () => void;
   containerRef?: React.RefObject<HTMLPreElement | null>;
 }
 
@@ -48,6 +49,7 @@ export default function RawViewer({
   highlightedCommentId,
   onTextSelect,
   onHighlightClick,
+  onSelectionMade,
   containerRef,
 }: RawViewerProps) {
   const handleMouseUp = useCallback(() => {
@@ -80,13 +82,16 @@ export default function RawViewer({
       ? rect.top - containerRect.top + scrollTop
       : 0;
 
+    // Signal that a selection was made
+    onSelectionMade?.();
+
     onTextSelect({
       selectedText,
       contextBefore,
       contextAfter,
       selectionTop,
     });
-  }, [content, onTextSelect, containerRef]);
+  }, [content, onTextSelect, onSelectionMade, containerRef]);
 
   const highlightRegions = useMemo((): HighlightRegion[] => {
     return comments
@@ -120,6 +125,7 @@ export default function RawViewer({
       segments.push(
         <span
           key={`highlight-${index}`}
+          data-comment-interactive
           className={`${styles.commentHighlight} ${isHighlighted ? styles.commentHighlightActive : ''}`}
           data-comment-id={region.commentId}
           onClick={(e) => {

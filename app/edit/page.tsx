@@ -10,6 +10,7 @@ import ThemeToggle from '../components/ThemeToggle';
 import CommentSidebar from '../components/CommentSidebar';
 import NamePrompt from '../components/NamePrompt';
 import { useCommentPositioning } from '@/app/hooks/useCommentPositioning';
+import { useClickOutsideToClear } from '@/app/hooks/useClickOutsideToClear';
 import { PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
 import styles from './page.module.css';
 
@@ -170,6 +171,16 @@ function EditPageContent() {
     setHighlightedCommentId(commentId);
   }, []);
 
+  const handleClearInteraction = useCallback(() => {
+    setHighlightedCommentId(null);
+    setShowCommentForm(false);
+  }, []);
+
+  const { markSelectionMade } = useClickOutsideToClear({
+    onClear: handleClearInteraction,
+    isActive: highlightedCommentId !== null || showCommentForm,
+  });
+
   const handleCommentDelete = useCallback(async (commentId: string) => {
     if (!filePath) return;
 
@@ -224,6 +235,7 @@ function EditPageContent() {
               highlightedCommentId={highlightedCommentId}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
+              onSelectionMade={markSelectionMade}
               containerRef={viewerContainerRef as React.RefObject<HTMLDivElement | null>}
             />
           ) : (
@@ -233,6 +245,7 @@ function EditPageContent() {
               highlightedCommentId={highlightedCommentId}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
+              onSelectionMade={markSelectionMade}
               containerRef={viewerContainerRef as React.RefObject<HTMLPreElement | null>}
             />
           )}
