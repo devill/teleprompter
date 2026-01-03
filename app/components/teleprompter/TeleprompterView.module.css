@@ -4,7 +4,6 @@
   background: var(--teleprompter-bg);
   color: var(--teleprompter-text);
   overflow-y: auto;
-  scroll-behavior: smooth;
   padding: var(--teleprompter-margin, 10%);
 }
 
@@ -27,7 +26,7 @@
 }
 
 .currentLine {
-  background: var(--teleprompter-highlight);
+  /* Background removed - word-by-word dimming is sufficient */
 }
 
 .spokenWord {

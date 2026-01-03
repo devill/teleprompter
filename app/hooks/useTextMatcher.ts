@@ -18,7 +18,7 @@ const JUMP_MAX_WAIT_MS = 5000; // Cancel listening mode if no target words arriv
 interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
-  onMatch: (result: MatchResult) => void;
+  onMatch?: (result: MatchResult) => void;
 }
 
 export type JumpModeStatus = 'inactive' | 'listening' | 'searching' | 'success' | 'no-match';
@@ -84,7 +84,7 @@ export function useTextMatcher({
       setCurrentLineIndex(matchResult.lineIndex);
       setJumpModeStatus('success');
       setJumpTargetText(result.matchedText);
-      onMatch(matchResult);
+      onMatch?.(matchResult);
     } else {
       setJumpModeStatus('no-match');
       setJumpTargetText(targetWords.join(' '));
@@ -190,7 +190,7 @@ export function useTextMatcher({
 
       if (result) {
         setCurrentLineIndex(result.lineIndex);
-        onMatch(result);
+        onMatch?.(result);
       }
     }
 

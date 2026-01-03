@@ -9,7 +9,6 @@ import { useFullscreen } from '@/app/hooks/useFullscreen';
 import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
-import type { MatchResult } from '@/app/lib/speechMatcher';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
@@ -40,15 +39,42 @@ function TeleprompterContent() {
 
   const sectionAnchors = useMemo(() => parseSections(content), [content]);
 
-  const scrollToLine = useCallback((lineIndex: number) => {
-    const lineElement = viewerRef.current?.querySelector(`[data-line-index="${lineIndex}"]`);
-    // Use 'start' - the CSS padding positions this at 1/3 from top
-    lineElement?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }, []);
+  // Fast scroll for jump mode (ease-in-out animation)
+  const scrollToWordFast = useCallback((wordIndex: number) => {
+    const container = viewerRef.current;
+    const wordElement = container?.querySelector(`[data-word-index="${wordIndex}"]`) as HTMLElement | null;
+    if (!container || !wordElement) return;
 
-  const handleMatch = useCallback((result: MatchResult) => {
-    scrollToLine(result.lineIndex);
-  }, [scrollToLine]);
+    const viewportHeight = container.clientHeight;
+    const targetOffset = viewportHeight * 0.33;
+    const wordTop = wordElement.offsetTop - container.offsetTop;
+    const targetScrollTop = wordTop - targetOffset;
+    const startScrollTop = container.scrollTop;
+    const distance = targetScrollTop - startScrollTop;
+
+    if (Math.abs(distance) < 1) return;
+
+    const duration = 400;
+    const startTime = performance.now();
+
+    const easeInOutCubic = (t: number): number => {
+      return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    };
+
+    const animate = (currentTime: number) => {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const easedProgress = easeInOutCubic(progress);
+
+      container.scrollTop = startScrollTop + distance * easedProgress;
+
+      if (progress < 1) {
+        requestAnimationFrame(animate);
+      }
+    };
+
+    requestAnimationFrame(animate);
+  }, []);
 
   const {
     processTranscript,
@@ -59,8 +85,91 @@ function TeleprompterContent() {
   } = useTextMatcher({
     content,
     sectionAnchors,
-    onMatch: handleMatch,
+    onMatch: (result) => scrollToWordFast(result.globalWordIndex),
   });
+
+  // Continuous smooth scroll with velocity-based ease in/out
+  const scrollVelocityRef = useRef(0);
+
+  useEffect(() => {
+    if (scrollMode !== 'speech' || !isListening) return;
+
+    const container = viewerRef.current;
+    if (!container) return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const smoothScroll = (currentTime: number) => {
+      const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap at 100ms
+      lastTime = currentTime;
+
+      const wordElement = container.querySelector(`[data-word-index="${currentWordIndex}"]`) as HTMLElement | null;
+      if (!wordElement) {
+        animationFrameId = requestAnimationFrame(smoothScroll);
+        return;
+      }
+
+      const viewportHeight = container.clientHeight;
+      const targetOffset = viewportHeight * 0.33;
+      const wordTop = wordElement.offsetTop - container.offsetTop;
+      const targetScrollTop = wordTop - targetOffset;
+      const currentScrollTop = container.scrollTop;
+      const error = targetScrollTop - currentScrollTop;
+
+      // Velocity-based scrolling with acceleration/deceleration
+      const maxVelocity = 600; // pixels per second
+      const acceleration = 800; // pixels per second squared
+      const deceleration = 1200; // pixels per second squared (faster decel for smooth stop)
+      const deadZone = 2; // pixels - stop moving when this close
+
+      // Calculate target velocity based on error
+      let targetVelocity = 0;
+      if (Math.abs(error) > deadZone) {
+        // Scale velocity with distance, capped at maxVelocity
+        const velocityScale = Math.min(Math.abs(error) / 100, 1);
+        targetVelocity = Math.sign(error) * maxVelocity * velocityScale;
+      }
+
+      // Smoothly adjust current velocity towards target
+      const currentVelocity = scrollVelocityRef.current;
+      let newVelocity: number;
+
+      if (Math.abs(targetVelocity) > Math.abs(currentVelocity)) {
+        // Accelerating
+        const accelAmount = acceleration * deltaTime;
+        if (targetVelocity > currentVelocity) {
+          newVelocity = Math.min(currentVelocity + accelAmount, targetVelocity);
+        } else {
+          newVelocity = Math.max(currentVelocity - accelAmount, targetVelocity);
+        }
+      } else {
+        // Decelerating
+        const decelAmount = deceleration * deltaTime;
+        if (currentVelocity > 0) {
+          newVelocity = Math.max(currentVelocity - decelAmount, Math.max(0, targetVelocity));
+        } else {
+          newVelocity = Math.min(currentVelocity + decelAmount, Math.min(0, targetVelocity));
+        }
+      }
+
+      scrollVelocityRef.current = newVelocity;
+
+      // Apply velocity
+      if (Math.abs(newVelocity) > 0.1) {
+        container.scrollTop = currentScrollTop + newVelocity * deltaTime;
+      }
+
+      animationFrameId = requestAnimationFrame(smoothScroll);
+    };
+
+    animationFrameId = requestAnimationFrame(smoothScroll);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      scrollVelocityRef.current = 0; // Reset velocity when stopping
+    };
+  }, [scrollMode, isListening, currentWordIndex]);
 
   // Use speech line index when listening, manual when not
   const activeLineIndex = scrollMode === 'speech' && isListening ? currentLineIndex : manualLineIndex;
@@ -74,38 +183,85 @@ function TeleprompterContent() {
     }
   }, [transcript, interimTranscript, processTranscript, isListening]);
 
+  // Smooth scroll to line for manual mode (position at 1/3 viewport)
+  const scrollToLineSmooth = useCallback((lineIndex: number) => {
+    const container = viewerRef.current;
+    const lineElement = container?.querySelector(`[data-line-index="${lineIndex}"]`) as HTMLElement | null;
+    if (!container || !lineElement) return;
+
+    const viewportHeight = container.clientHeight;
+    const targetOffset = viewportHeight * 0.33;
+    const lineTop = lineElement.offsetTop - container.offsetTop;
+    const targetScrollTop = lineTop - targetOffset;
+    const startScrollTop = container.scrollTop;
+    const distance = targetScrollTop - startScrollTop;
+
+    if (Math.abs(distance) < 1) return;
+
+    let animationFrameId: number;
+    let lastTime = performance.now();
+
+    const animate = (currentTime: number) => {
+      const deltaTime = (currentTime - lastTime) / 1000;
+      lastTime = currentTime;
+
+      const currentError = targetScrollTop - container.scrollTop;
+      const minSpeed = 50;
+      const maxSpeed = 800;
+      const errorThreshold = 100;
+
+      let speed: number;
+      if (Math.abs(currentError) < errorThreshold) {
+        speed = minSpeed;
+      } else {
+        const scaleFactor = Math.min(Math.abs(currentError) / errorThreshold, maxSpeed / minSpeed);
+        speed = minSpeed * scaleFactor;
+      }
+
+      const maxMove = speed * deltaTime;
+      const move = Math.sign(currentError) * Math.min(Math.abs(currentError), maxMove);
+
+      if (Math.abs(currentError) > 1) {
+        container.scrollTop += move;
+        animationFrameId = requestAnimationFrame(animate);
+      }
+    };
+
+    animationFrameId = requestAnimationFrame(animate);
+  }, []);
+
   // Keyboard navigation (for manual mode)
   const scrollUp = useCallback(() => {
     setManualLineIndex(prev => {
       const newIndex = Math.max(0, prev - 1);
-      scrollToLine(newIndex);
+      scrollToLineSmooth(newIndex);
       return newIndex;
     });
-  }, [scrollToLine]);
+  }, [scrollToLineSmooth]);
 
   const scrollDown = useCallback(() => {
     setManualLineIndex(prev => {
       const newIndex = prev + 1;
-      scrollToLine(newIndex);
+      scrollToLineSmooth(newIndex);
       return newIndex;
     });
-  }, [scrollToLine]);
+  }, [scrollToLineSmooth]);
 
   const pageUp = useCallback(() => {
     setManualLineIndex(prev => {
       const newIndex = Math.max(0, prev - 5);
-      scrollToLine(newIndex);
+      scrollToLineSmooth(newIndex);
       return newIndex;
     });
-  }, [scrollToLine]);
+  }, [scrollToLineSmooth]);
 
   const pageDown = useCallback(() => {
     setManualLineIndex(prev => {
       const newIndex = prev + 5;
-      scrollToLine(newIndex);
+      scrollToLineSmooth(newIndex);
       return newIndex;
     });
-  }, [scrollToLine]);
+  }, [scrollToLineSmooth]);
 
   const togglePause = useCallback(() => {
     if (isListening) {

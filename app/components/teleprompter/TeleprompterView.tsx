@@ -83,6 +83,7 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
                 return (
                   <span
                     key={wordIdx}
+                    data-word-index={globalIdx}
                     className={isSpoken ? styles.spokenWord : styles.unspokenWord}
                   >
                     {word}
