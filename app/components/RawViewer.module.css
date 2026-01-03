@@ -27,3 +27,9 @@
   background-color: var(--color-accent-subtle);
   box-shadow: 0 0 0 2px var(--color-accent);
 }
+
+.marker {
+  color: var(--color-text-muted);
+  opacity: 0.5;
+  font-size: 0.85em;
+}

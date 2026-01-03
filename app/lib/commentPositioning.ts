@@ -1,35 +1,27 @@
 export const PENDING_COMMENT_ID = '__pending__';
 
-export interface TextSelectionData {
-  selectedText: string;
-  contextBefore: string;
-  contextAfter: string;
-  selectionTop?: number;
+export interface PendingSelection {
+  startIndex: number;
+  endIndex: number;
+  selectionTop: number;
 }
 
 export interface Comment {
   id: string;
   author: string;
   text: string;
-  anchor: TextSelectionData;
   createdAt: string;
 }
 
-// Find position of anchor in content (extract from existing viewers)
-export function findTextPosition(content: string, anchor: TextSelectionData): number {
-  const fullPattern = anchor.contextBefore + anchor.selectedText + anchor.contextAfter;
-  const patternIndex = content.indexOf(fullPattern);
-  if (patternIndex !== -1) {
-    return patternIndex + anchor.contextBefore.length;
-  }
-  return content.indexOf(anchor.selectedText);
-}
-
-// Sort comments by their position in document
-export function sortCommentsByTextPosition(comments: Comment[], content: string): Comment[] {
+// Sort comments by their position in document using pre-parsed regions
+export function sortCommentsByTextPosition(
+  comments: Comment[],
+  regions: Array<{ commentId: string; start: number }>
+): Comment[] {
+  const positionMap = new Map(regions.map(r => [r.commentId, r.start]));
   return [...comments].sort((a, b) => {
-    const posA = findTextPosition(content, a.anchor);
-    const posB = findTextPosition(content, b.anchor);
+    const posA = positionMap.get(a.id) ?? 0;
+    const posB = positionMap.get(b.id) ?? 0;
     return posA - posB;
   });
 }
@@ -105,16 +97,11 @@ export function resolveCollisions(
   return result;
 }
 
-export function createPendingComment(anchor: TextSelectionData): Comment {
+export function createPendingComment(): Comment {
   return {
     id: PENDING_COMMENT_ID,
     author: '',
     text: '',
-    anchor: {
-      selectedText: anchor.selectedText,
-      contextBefore: anchor.contextBefore,
-      contextAfter: anchor.contextAfter,
-    },
     createdAt: new Date().toISOString(),
   };
 }

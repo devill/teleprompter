@@ -3,41 +3,51 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   Comment,
-  TextSelectionData,
+  PendingSelection,
   sortCommentsByTextPosition,
   getHighlightTopPosition,
   resolveCollisions,
   PENDING_COMMENT_ID,
   createPendingComment,
 } from '@/app/lib/commentPositioning';
+import { StrippedCommentRegion } from '@/app/lib/markerParser';
 
 interface UseCommentPositioningProps {
   comments: Comment[];
-  content: string;
+  regions: StrippedCommentRegion[];
   highlightedCommentId: string | null;
   viewerContainerRef: React.RefObject<HTMLElement | null>;
-  pendingAnchor?: TextSelectionData | null;
+  pendingSelection?: PendingSelection | null;
 }
 
 export function useCommentPositioning({
   comments,
-  content,
+  regions,
   highlightedCommentId,
   viewerContainerRef,
-  pendingAnchor = null,
+  pendingSelection = null,
 }: UseCommentPositioningProps) {
   const [positions, setPositions] = useState<Map<string, number>>(new Map());
   const [heights, setHeights] = useState<Map<string, number>>(new Map());
 
   // Sort comments by text position (memoized), including pending comment if present
   const sortedComments = useMemo(() => {
-    const baseComments = sortCommentsByTextPosition(comments, content);
-    if (!pendingAnchor) return baseComments;
+    const baseComments = sortCommentsByTextPosition(comments, regions);
 
-    const pendingComment = createPendingComment(pendingAnchor);
+    if (!pendingSelection) return baseComments;
+
+    // Add pending comment and re-sort
+    const pendingComment = createPendingComment();
     const allComments = [...baseComments, pendingComment];
-    return sortCommentsByTextPosition(allComments, content);
-  }, [comments, content, pendingAnchor]);
+
+    // Create regions array including pending
+    const allRegions = [
+      ...regions,
+      { commentId: PENDING_COMMENT_ID, start: pendingSelection.startIndex, end: pendingSelection.endIndex, selectedText: '' }
+    ];
+
+    return sortCommentsByTextPosition(allComments, allRegions);
+  }, [comments, regions, pendingSelection]);
 
   // Calculate positions
   const updatePositions = useCallback(() => {
@@ -46,8 +56,8 @@ export function useCommentPositioning({
 
     const desiredPositions = new Map<string, number>();
     for (const comment of sortedComments) {
-      if (comment.id === PENDING_COMMENT_ID && pendingAnchor?.selectionTop !== undefined) {
-        desiredPositions.set(comment.id, pendingAnchor.selectionTop);
+      if (comment.id === PENDING_COMMENT_ID && pendingSelection?.selectionTop !== undefined) {
+        desiredPositions.set(comment.id, pendingSelection.selectionTop);
       } else {
         const top = getHighlightTopPosition(comment.id, container);
         if (top !== null) {
@@ -64,7 +74,7 @@ export function useCommentPositioning({
     );
 
     setPositions(finalPositions);
-  }, [sortedComments, heights, highlightedCommentId, viewerContainerRef, pendingAnchor]);
+  }, [sortedComments, heights, highlightedCommentId, viewerContainerRef, pendingSelection]);
 
   // Update on scroll
   useEffect(() => {
@@ -76,10 +86,10 @@ export function useCommentPositioning({
     return () => container.removeEventListener('scroll', handleScroll);
   }, [updatePositions, viewerContainerRef]);
 
-  // Update on comment/highlight/pendingAnchor changes, with RAF for DOM timing
+  // Update on comment/highlight/pendingSelection changes, with RAF for DOM timing
   useEffect(() => {
     requestAnimationFrame(updatePositions);
-  }, [updatePositions, comments, highlightedCommentId, pendingAnchor]);
+  }, [updatePositions, comments, highlightedCommentId, pendingSelection]);
 
   // Callback for CommentSidebar to report card heights
   const setCommentHeight = useCallback((commentId: string, height: number) => {

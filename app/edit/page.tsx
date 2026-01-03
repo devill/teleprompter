@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { v4 as uuidv4 } from 'uuid';
 import MarkdownViewer from '../components/MarkdownViewer';
@@ -11,24 +11,21 @@ import CommentSidebar from '../components/CommentSidebar';
 import NamePrompt from '../components/NamePrompt';
 import { useCommentPositioning } from '@/app/hooks/useCommentPositioning';
 import { useClickOutsideToClear } from '@/app/hooks/useClickOutsideToClear';
-import { PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
+import {
+  stripMarkers,
+  getStrippedRegions,
+  insertCommentMarkers,
+  removeCommentMarkers,
+} from '@/app/lib/markerParser';
+import { Comment, PendingSelection, PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
 import styles from './page.module.css';
 
 type ViewType = 'rendered' | 'raw';
 
-interface TextSelectionData {
-  selectedText: string;
-  contextBefore: string;
-  contextAfter: string;
+interface SelectionData {
+  startIndex: number;
+  endIndex: number;
   selectionTop: number;
-}
-
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  anchor: TextSelectionData;
-  createdAt: string;
 }
 
 interface MetaData {
@@ -41,10 +38,10 @@ function EditPageContent() {
   const searchParams = useSearchParams();
   const filePath = searchParams.get('path');
 
-  const [content, setContent] = useState('');
+  const [rawContent, setRawContent] = useState('');
   const [comments, setComments] = useState<Comment[]>([]);
   const [viewType, setViewType] = useState<ViewType>('rendered');
-  const [selectedAnchor, setSelectedAnchor] = useState<TextSelectionData | null>(null);
+  const [pendingSelection, setPendingSelection] = useState<PendingSelection | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
@@ -55,12 +52,15 @@ function EditPageContent() {
 
   const viewerContainerRef = useRef<HTMLElement | null>(null);
 
+  const strippedContent = useMemo(() => stripMarkers(rawContent), [rawContent]);
+  const strippedRegions = useMemo(() => getStrippedRegions(rawContent), [rawContent]);
+
   const { positions, sortedComments, setCommentHeight } = useCommentPositioning({
     comments,
-    content,
+    regions: strippedRegions,
     highlightedCommentId: showCommentForm ? PENDING_COMMENT_ID : highlightedCommentId,
     viewerContainerRef,
-    pendingAnchor: showCommentForm && selectedAnchor ? selectedAnchor : null,
+    pendingSelection: showCommentForm ? pendingSelection : null,
   });
 
   useEffect(() => {
@@ -89,7 +89,7 @@ function EditPageContent() {
         }
 
         const fileContent = await fileResponse.text();
-        setContent(fileContent);
+        setRawContent(fileContent);
 
         if (metaResponse.ok) {
           const metaData: MetaData = await metaResponse.json();
@@ -106,8 +106,8 @@ function EditPageContent() {
     loadData();
   }, [filePath]);
 
-  const handleTextSelect = useCallback((data: TextSelectionData) => {
-    setSelectedAnchor(data);
+  const handleTextSelect = useCallback((data: SelectionData) => {
+    setPendingSelection(data);
     if (!userName) {
       setShowNamePrompt(true);
     } else {
@@ -127,37 +127,53 @@ function EditPageContent() {
   }, []);
 
   const handleCommentSubmit = useCallback(async (commentText: string) => {
-    if (!selectedAnchor || !userName || !filePath) return;
+    if (!pendingSelection || !userName || !filePath) return;
+
+    const commentId = uuidv4();
+
+    // Insert markers into raw content
+    const updatedRawContent = insertCommentMarkers(
+      rawContent,
+      pendingSelection.startIndex,
+      pendingSelection.endIndex,
+      commentId
+    );
 
     const newComment: Comment = {
-      id: uuidv4(),
+      id: commentId,
       author: userName,
       text: commentText,
-      anchor: selectedAnchor,
       createdAt: new Date().toISOString(),
     };
 
     const updatedComments = [...comments, newComment];
 
     try {
-      const response = await fetch(`/api/meta?path=${encodeURIComponent(filePath)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comments: updatedComments }),
-      });
+      // Save both file and meta
+      const [fileResponse, metaResponse] = await Promise.all([
+        fetch(`/api/file?path=${encodeURIComponent(filePath)}`, {
+          method: 'PUT',
+          body: updatedRawContent,
+        }),
+        fetch(`/api/meta?path=${encodeURIComponent(filePath)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comments: updatedComments }),
+        }),
+      ]);
 
-      if (response.ok) {
+      if (fileResponse.ok && metaResponse.ok) {
         setNewlyCreatedCommentId(newComment.id);
+        setRawContent(updatedRawContent);
         setComments(updatedComments);
-        setSelectedAnchor(null);
+        setPendingSelection(null);
         setShowCommentForm(false);
-        // Clear newly created flag after animation completes
         setTimeout(() => setNewlyCreatedCommentId(null), 200);
       }
     } catch {
       // Handle error silently for MVP
     }
-  }, [selectedAnchor, userName, filePath, comments]);
+  }, [pendingSelection, userName, filePath, rawContent, comments]);
 
   const handleCommentCancel = useCallback(() => {
     setShowCommentForm(false);
@@ -184,16 +200,25 @@ function EditPageContent() {
   const handleCommentDelete = useCallback(async (commentId: string) => {
     if (!filePath) return;
 
+    // Remove markers from raw content
+    const updatedRawContent = removeCommentMarkers(rawContent, commentId);
     const updatedComments = comments.filter(c => c.id !== commentId);
 
     try {
-      const response = await fetch(`/api/meta?path=${encodeURIComponent(filePath)}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ comments: updatedComments }),
-      });
+      const [fileResponse, metaResponse] = await Promise.all([
+        fetch(`/api/file?path=${encodeURIComponent(filePath)}`, {
+          method: 'PUT',
+          body: updatedRawContent,
+        }),
+        fetch(`/api/meta?path=${encodeURIComponent(filePath)}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ comments: updatedComments }),
+        }),
+      ]);
 
-      if (response.ok) {
+      if (fileResponse.ok && metaResponse.ok) {
+        setRawContent(updatedRawContent);
         setComments(updatedComments);
         if (highlightedCommentId === commentId) {
           setHighlightedCommentId(null);
@@ -202,7 +227,7 @@ function EditPageContent() {
     } catch {
       // Handle error silently for MVP
     }
-  }, [filePath, comments, highlightedCommentId]);
+  }, [filePath, rawContent, comments, highlightedCommentId]);
 
   if (loading) {
     return <div className={styles.loading}>Loading...</div>;
@@ -230,10 +255,13 @@ function EditPageContent() {
         <main className={styles.mainContent}>
           {viewType === 'rendered' ? (
             <MarkdownViewer
-              content={content}
-              comments={comments}
+              content={strippedContent}
+              regions={strippedRegions}
               highlightedCommentId={highlightedCommentId}
-              pendingAnchor={showCommentForm ? selectedAnchor : null}
+              pendingRegion={showCommentForm && pendingSelection ? {
+                start: pendingSelection.startIndex,
+                end: pendingSelection.endIndex,
+              } : null}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
               onSelectionMade={markSelectionMade}
@@ -241,10 +269,13 @@ function EditPageContent() {
             />
           ) : (
             <RawViewer
-              content={content}
-              comments={comments}
+              content={rawContent}
+              regions={strippedRegions}
               highlightedCommentId={highlightedCommentId}
-              pendingAnchor={showCommentForm ? selectedAnchor : null}
+              pendingRegion={showCommentForm && pendingSelection ? {
+                start: pendingSelection.startIndex,
+                end: pendingSelection.endIndex,
+              } : null}
               onTextSelect={handleTextSelect}
               onHighlightClick={handleHighlightClick}
               onSelectionMade={markSelectionMade}
@@ -260,7 +291,7 @@ function EditPageContent() {
             onCommentClick={handleCommentClick}
             onDelete={handleCommentDelete}
             onHeightMeasured={setCommentHeight}
-            pendingForm={showCommentForm && selectedAnchor ? {
+            pendingForm={showCommentForm && pendingSelection ? {
               onSubmit: handleCommentSubmit,
               onCancel: handleCommentCancel,
             } : null}

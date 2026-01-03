@@ -1,21 +1,7 @@
 import { useEffect, useRef } from 'react';
 import styles from './CommentSidebar.module.css';
-import { PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
+import { Comment, PENDING_COMMENT_ID } from '@/app/lib/commentPositioning';
 import CommentForm from './CommentForm';
-
-interface CommentAnchor {
-  selectedText: string;
-  contextBefore: string;
-  contextAfter: string;
-}
-
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  anchor: CommentAnchor;
-  createdAt: string;
-}
 
 interface CommentSidebarProps {
   comments: Comment[];

@@ -2,41 +2,18 @@
 
 import React, { useCallback, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import { StrippedCommentRegion } from '@/app/lib/markerParser';
 import styles from './MarkdownViewer.module.css';
 
-interface TextSelectionData {
-  selectedText: string;
-  contextBefore: string;
-  contextAfter: string;
-  selectionTop: number;
-}
-
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  anchor: TextSelectionData;
-  createdAt: string;
-}
-
 interface MarkdownViewerProps {
-  content: string;
-  comments: Comment[];
+  content: string;  // This is now STRIPPED content (no markers)
+  regions: StrippedCommentRegion[];  // Pre-parsed comment regions
   highlightedCommentId: string | null;
-  pendingAnchor?: TextSelectionData | null;
-  onTextSelect: (data: TextSelectionData) => void;
+  pendingRegion?: { start: number; end: number } | null;  // Simpler than before
+  onTextSelect: (data: { startIndex: number; endIndex: number; selectionTop: number }) => void;
   onHighlightClick: (commentId: string) => void;
   onSelectionMade?: () => void;
   containerRef?: React.RefObject<HTMLDivElement | null>;
-}
-
-function findTextPosition(content: string, anchor: TextSelectionData): number {
-  const fullPattern = anchor.contextBefore + anchor.selectedText + anchor.contextAfter;
-  const patternIndex = content.indexOf(fullPattern);
-  if (patternIndex !== -1) {
-    return patternIndex + anchor.contextBefore.length;
-  }
-  return content.indexOf(anchor.selectedText);
 }
 
 interface HighlightRegion {
@@ -108,9 +85,9 @@ function HighlightedText({
 
 export default function MarkdownViewer({
   content,
-  comments,
+  regions,
   highlightedCommentId,
-  pendingAnchor,
+  pendingRegion,
   onTextSelect,
   onHighlightClick,
   onSelectionMade,
@@ -118,72 +95,44 @@ export default function MarkdownViewer({
 }: MarkdownViewerProps) {
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      return;
-    }
+    if (!selection || selection.isCollapsed) return;
 
     const selectedText = selection.toString();
-    if (!selectedText.trim()) {
-      return;
-    }
+    if (!selectedText.trim()) return;
 
-    const selectionStart = content.indexOf(selectedText);
-    if (selectionStart === -1) {
-      return;
-    }
-
-    const contextBefore = content.slice(Math.max(0, selectionStart - 50), selectionStart);
-    const contextAfter = content.slice(
-      selectionStart + selectedText.length,
-      selectionStart + selectedText.length + 50
-    );
+    // Find position in stripped content
+    const startIndex = content.indexOf(selectedText);
+    if (startIndex === -1) return;
+    const endIndex = startIndex + selectedText.length;
 
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const containerRect = containerRef?.current?.getBoundingClientRect();
     const scrollTop = containerRef?.current?.scrollTop ?? 0;
-    const selectionTop = containerRect
-      ? rect.top - containerRect.top + scrollTop
-      : 0;
+    const selectionTop = containerRect ? rect.top - containerRect.top + scrollTop : 0;
 
-    // Signal that a selection was made
     onSelectionMade?.();
-
-    onTextSelect({
-      selectedText,
-      contextBefore,
-      contextAfter,
-      selectionTop,
-    });
+    onTextSelect({ startIndex, endIndex, selectionTop });
   }, [content, onTextSelect, onSelectionMade, containerRef]);
 
   const highlightRegions = useMemo((): HighlightRegion[] => {
-    const regions = comments
-      .map((comment) => {
-        const start = findTextPosition(content, comment.anchor);
-        if (start === -1) return null;
-        return {
-          start,
-          end: start + comment.anchor.selectedText.length,
-          commentId: comment.id,
-        };
-      })
-      .filter((region): region is HighlightRegion => region !== null);
+    const result: HighlightRegion[] = regions.map(r => ({
+      start: r.start,
+      end: r.end,
+      commentId: r.commentId,
+    }));
 
-    // Add pending selection as a highlight region
-    if (pendingAnchor) {
-      const start = findTextPosition(content, pendingAnchor);
-      if (start !== -1) {
-        regions.push({
-          start,
-          end: start + pendingAnchor.selectedText.length,
-          commentId: '__pending__',
-        });
-      }
+    // Add pending selection
+    if (pendingRegion) {
+      result.push({
+        start: pendingRegion.start,
+        end: pendingRegion.end,
+        commentId: '__pending__',
+      });
     }
 
-    return regions.sort((a, b) => a.start - b.start);
-  }, [content, comments, pendingAnchor]);
+    return result.sort((a, b) => a.start - b.start);
+  }, [regions, pendingRegion]);
 
   const components = useMemo(() => {
     function renderWithHighlights(text: string): React.ReactNode {

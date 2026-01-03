@@ -2,53 +2,24 @@
 
 import { useCallback, useMemo } from 'react';
 import styles from './RawViewer.module.css';
-
-interface TextSelectionData {
-  selectedText: string;
-  contextBefore: string;
-  contextAfter: string;
-  selectionTop: number;
-}
-
-interface Comment {
-  id: string;
-  author: string;
-  text: string;
-  anchor: TextSelectionData;
-  createdAt: string;
-}
+import { parseCommentMarkers, StrippedCommentRegion } from '@/app/lib/markerParser';
 
 interface RawViewerProps {
-  content: string;
-  comments: Comment[];
+  content: string;  // RAW content WITH markers
+  regions: StrippedCommentRegion[];  // Not directly used but kept for interface consistency
   highlightedCommentId: string | null;
-  pendingAnchor?: TextSelectionData | null;
-  onTextSelect: (data: TextSelectionData) => void;
+  pendingRegion?: { start: number; end: number } | null;
+  onTextSelect: (data: { startIndex: number; endIndex: number; selectionTop: number }) => void;
   onHighlightClick: (commentId: string) => void;
   onSelectionMade?: () => void;
   containerRef?: React.RefObject<HTMLPreElement | null>;
 }
 
-function findTextPosition(content: string, anchor: TextSelectionData): number {
-  const fullPattern = anchor.contextBefore + anchor.selectedText + anchor.contextAfter;
-  const patternIndex = content.indexOf(fullPattern);
-  if (patternIndex !== -1) {
-    return patternIndex + anchor.contextBefore.length;
-  }
-  return content.indexOf(anchor.selectedText);
-}
-
-interface HighlightRegion {
-  start: number;
-  end: number;
-  commentId: string;
-}
-
 export default function RawViewer({
   content,
-  comments,
+  regions: _regions,
   highlightedCommentId,
-  pendingAnchor,
+  pendingRegion,
   onTextSelect,
   onHighlightClick,
   onSelectionMade,
@@ -56,87 +27,58 @@ export default function RawViewer({
 }: RawViewerProps) {
   const handleMouseUp = useCallback(() => {
     const selection = window.getSelection();
-    if (!selection || selection.isCollapsed) {
-      return;
-    }
+    if (!selection || selection.isCollapsed) return;
 
     const selectedText = selection.toString();
-    if (!selectedText.trim()) {
-      return;
-    }
+    if (!selectedText.trim()) return;
 
-    const selectionStart = content.indexOf(selectedText);
-    if (selectionStart === -1) {
-      return;
-    }
+    // Don't allow selecting marker syntax
+    if (selectedText.includes('[[c:') || selectedText.includes('[[/c]]')) return;
 
-    const contextBefore = content.slice(Math.max(0, selectionStart - 50), selectionStart);
-    const contextAfter = content.slice(
-      selectionStart + selectedText.length,
-      selectionStart + selectedText.length + 50
-    );
+    const startIndex = content.indexOf(selectedText);
+    if (startIndex === -1) return;
+    const endIndex = startIndex + selectedText.length;
 
     const range = selection.getRangeAt(0);
     const rect = range.getBoundingClientRect();
     const containerRect = containerRef?.current?.getBoundingClientRect();
     const scrollTop = containerRef?.current?.scrollTop ?? 0;
-    const selectionTop = containerRect
-      ? rect.top - containerRect.top + scrollTop
-      : 0;
+    const selectionTop = containerRect ? rect.top - containerRect.top + scrollTop : 0;
 
-    // Signal that a selection was made
     onSelectionMade?.();
-
-    onTextSelect({
-      selectedText,
-      contextBefore,
-      contextAfter,
-      selectionTop,
-    });
+    onTextSelect({ startIndex, endIndex, selectionTop });
   }, [content, onTextSelect, onSelectionMade, containerRef]);
 
-  const highlightRegions = useMemo((): HighlightRegion[] => {
-    const regions = comments
-      .map((comment) => {
-        const start = findTextPosition(content, comment.anchor);
-        if (start === -1) return null;
-        return {
-          start,
-          end: start + comment.anchor.selectedText.length,
-          commentId: comment.id,
-        };
-      })
-      .filter((region): region is HighlightRegion => region !== null);
-
-    // Add pending selection as a highlight region
-    if (pendingAnchor) {
-      const start = findTextPosition(content, pendingAnchor);
-      if (start !== -1) {
-        regions.push({
-          start,
-          end: start + pendingAnchor.selectedText.length,
-          commentId: '__pending__',
-        });
-      }
-    }
-
-    return regions.sort((a, b) => a.start - b.start);
-  }, [content, comments, pendingAnchor]);
-
   const renderContentWithHighlights = useMemo(() => {
-    if (highlightRegions.length === 0) {
+    // Parse markers from raw content
+    const rawRegions = parseCommentMarkers(content);
+
+    if (rawRegions.length === 0 && !pendingRegion) {
       return content;
     }
 
     const segments: React.ReactNode[] = [];
     let lastEnd = 0;
 
-    highlightRegions.forEach((region, index) => {
-      if (region.start > lastEnd) {
-        segments.push(content.slice(lastEnd, region.start));
+    // Process each marker region
+    rawRegions.forEach((region, index) => {
+      // Text before this marker
+      if (region.startMarkerIndex > lastEnd) {
+        segments.push(content.slice(lastEnd, region.startMarkerIndex));
       }
 
       const isHighlighted = region.commentId === highlightedCommentId;
+      const startMarker = `[[c:${region.commentId}]]`;
+      const endMarker = '[[/c]]';
+
+      // Start marker (faded styling)
+      segments.push(
+        <span key={`marker-start-${index}`} className={styles.marker}>
+          {startMarker}
+        </span>
+      );
+
+      // Highlighted text between markers
       segments.push(
         <span
           key={`highlight-${index}`}
@@ -148,19 +90,27 @@ export default function RawViewer({
             onHighlightClick(region.commentId);
           }}
         >
-          {content.slice(region.start, region.end)}
+          {region.selectedText}
         </span>
       );
 
-      lastEnd = region.end;
+      // End marker (faded styling)
+      segments.push(
+        <span key={`marker-end-${index}`} className={styles.marker}>
+          {endMarker}
+        </span>
+      );
+
+      lastEnd = region.endMarkerIndex;
     });
 
+    // Remaining content after last marker
     if (lastEnd < content.length) {
       segments.push(content.slice(lastEnd));
     }
 
     return segments;
-  }, [content, highlightRegions, highlightedCommentId, onHighlightClick]);
+  }, [content, highlightedCommentId, onHighlightClick, pendingRegion]);
 
   return (
     <pre ref={containerRef} className={styles.container} onMouseUp={handleMouseUp}>
