@@ -16,28 +16,52 @@ const DEFAULT_SETTINGS: TeleprompterSettings = {
 
 const STORAGE_KEY = 'autolektor_teleprompter_settings';
 
-function getStoredSettings(): TeleprompterSettings | null {
-  if (typeof window === 'undefined') return null;
+// Cached snapshot to satisfy useSyncExternalStore requirements
+let cachedSettings: TeleprompterSettings = DEFAULT_SETTINGS;
+const listeners = new Set<() => void>();
+
+function loadFromStorage(): TeleprompterSettings {
+  if (typeof window === 'undefined') return DEFAULT_SETTINGS;
   const stored = localStorage.getItem(STORAGE_KEY);
-  if (!stored) return null;
+  if (!stored) return DEFAULT_SETTINGS;
   try {
     return JSON.parse(stored) as TeleprompterSettings;
   } catch {
-    return null;
+    return DEFAULT_SETTINGS;
   }
 }
 
-function getCurrentSettings(): TeleprompterSettings {
-  return getStoredSettings() ?? DEFAULT_SETTINGS;
+function updateCache() {
+  const newSettings = loadFromStorage();
+  // Only update if actually different (compare by value)
+  if (JSON.stringify(cachedSettings) !== JSON.stringify(newSettings)) {
+    cachedSettings = newSettings;
+    listeners.forEach(listener => listener());
+  }
 }
 
-function subscribeToSettings(callback: () => void) {
-  window.addEventListener('storage', callback);
-  return () => window.removeEventListener('storage', callback);
+function subscribe(callback: () => void) {
+  listeners.add(callback);
+  // Initialize cache on first subscriber
+  if (listeners.size === 1) {
+    cachedSettings = loadFromStorage();
+  }
+
+  const handleStorage = (e: StorageEvent) => {
+    if (e.key === STORAGE_KEY || e.key === null) {
+      updateCache();
+    }
+  };
+  window.addEventListener('storage', handleStorage);
+
+  return () => {
+    listeners.delete(callback);
+    window.removeEventListener('storage', handleStorage);
+  };
 }
 
-function getSettingsSnapshot(): TeleprompterSettings {
-  return getCurrentSettings();
+function getSnapshot(): TeleprompterSettings {
+  return cachedSettings;
 }
 
 function getServerSnapshot(): TeleprompterSettings {
@@ -46,17 +70,17 @@ function getServerSnapshot(): TeleprompterSettings {
 
 export function useTeleprompterSettings() {
   const settings = useSyncExternalStore(
-    subscribeToSettings,
-    getSettingsSnapshot,
+    subscribe,
+    getSnapshot,
     getServerSnapshot
   );
 
   const updateSettings = useCallback(
     (updates: Partial<TeleprompterSettings>) => {
-      const current = getCurrentSettings();
-      const newSettings = { ...current, ...updates };
+      const newSettings = { ...cachedSettings, ...updates };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(newSettings));
-      window.dispatchEvent(new StorageEvent('storage', { key: STORAGE_KEY }));
+      cachedSettings = newSettings;
+      listeners.forEach(listener => listener());
     },
     []
   );

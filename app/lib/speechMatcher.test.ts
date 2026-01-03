@@ -195,6 +195,51 @@ describe('checkSectionJump', () => {
 
     expect(result).toBeNull();
   });
+
+  it('picks best matching anchor when multiple have same common keywords', () => {
+    // This tests "lesson number two" - all lessons match "lesson" and "number",
+    // but Lesson 2 also matches "two" for a higher score
+    const anchors: SectionAnchor[] = [
+      {
+        id: 'lesson-1',
+        type: 'numbered',
+        level: 0,
+        text: 'Lesson 1',
+        normalizedText: 'lesson 1',
+        keywords: ['lesson', '1', 'one', 'number'],
+        charIndex: 0,
+      },
+      {
+        id: 'lesson-2',
+        type: 'numbered',
+        level: 0,
+        text: 'Lesson 2',
+        normalizedText: 'lesson 2',
+        keywords: ['lesson', '2', 'two', 'number'],
+        charIndex: 50,
+      },
+      {
+        id: 'lesson-3',
+        type: 'numbered',
+        level: 0,
+        text: 'Lesson 3',
+        normalizedText: 'lesson 3',
+        keywords: ['lesson', '3', 'three', 'number'],
+        charIndex: 100,
+      },
+    ];
+    // Content with all three lessons
+    const content = 'Lesson 1 content here\nLesson 2 content here\nLesson 3 content here';
+    let state = createMatcherState(content, anchors);
+    state = { ...state, lostCounter: 20 };
+
+    // Say "lesson number two" - should match Lesson 2 with highest score
+    const { result } = checkSectionJump(['lesson', 'number', 'two'], state);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchType).toBe('section_jump');
+    expect(result!.lineIndex).toBe(1); // Lesson 2 is on line index 1
+  });
 });
 
 describe('matchSpokenText (legacy API)', () => {

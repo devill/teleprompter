@@ -31,10 +31,6 @@ export function useTextMatcher({
   // Recreate matcher state when content changes
   useEffect(() => {
     const newState = createMatcherState(content, sectionAnchors);
-    console.log('[TextMatcher] Created state with anchors:', sectionAnchors.map(a => ({
-      text: a.text,
-      keywords: a.keywords,
-    })));
     setMatcherState(newState);
     setCurrentLineIndex(0);
     lastProcessedWordsRef.current = [];

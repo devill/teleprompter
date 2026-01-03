@@ -113,50 +113,42 @@ export function checkSectionJump(
 ): { result: MatchResult | null; newState: MatcherState } {
   const normalizedWords = recentWords.map(w => tokenize(w)[0] || w.toLowerCase()).filter(Boolean);
 
-  console.log('[SectionJump] Checking...', {
-    lostCounter: state.lostCounter,
-    threshold: LOST_THRESHOLD,
-    recentWords: normalizedWords,
-    anchorsCount: state.sectionAnchors.length,
-  });
-
   // Only consider section jump if we've been lost for a while
   if (state.lostCounter < LOST_THRESHOLD) {
-    console.log('[SectionJump] Not lost enough yet');
     return { result: null, newState: state };
   }
 
+  // Find the BEST matching anchor, not just the first one that meets minimum
+  let bestAnchor: SectionAnchor | null = null;
+  let bestScore = 0;
+
   for (const anchor of state.sectionAnchors) {
     const matchingKeywords = countMatchingKeywords(normalizedWords, anchor.keywords);
-    console.log('[SectionJump] Checking anchor:', {
-      text: anchor.text,
-      keywords: anchor.keywords,
-      matchingKeywords,
-      required: MIN_SECTION_KEYWORDS,
-    });
 
-    if (matchingKeywords >= MIN_SECTION_KEYWORDS) {
-      // Find the line that contains this section
-      const sectionLineIndex = findLineForSection(anchor, state);
-      const sectionWordIndex = state.words.findIndex(w => w.lineIndex === sectionLineIndex);
+    if (matchingKeywords >= MIN_SECTION_KEYWORDS && matchingKeywords > bestScore) {
+      bestScore = matchingKeywords;
+      bestAnchor = anchor;
+    }
+  }
 
-      console.log('[SectionJump] JUMPING to:', { sectionLineIndex, sectionWordIndex, anchorText: anchor.text });
+  if (bestAnchor) {
+    const sectionLineIndex = findLineForSection(bestAnchor, state);
+    const sectionWordIndex = state.words.findIndex(w => w.lineIndex === sectionLineIndex);
 
-      if (sectionWordIndex >= 0) {
-        return {
-          result: {
-            lineIndex: sectionLineIndex,
-            wordIndex: 0,
-            globalWordIndex: sectionWordIndex,
-            matchType: 'section_jump',
-          },
-          newState: {
-            ...state,
-            currentWordIndex: sectionWordIndex,
-            lostCounter: 0,
-          },
-        };
-      }
+    if (sectionWordIndex >= 0) {
+      return {
+        result: {
+          lineIndex: sectionLineIndex,
+          wordIndex: 0,
+          globalWordIndex: sectionWordIndex,
+          matchType: 'section_jump',
+        },
+        newState: {
+          ...state,
+          currentWordIndex: sectionWordIndex,
+          lostCounter: 0,
+        },
+      };
     }
   }
 
@@ -262,7 +254,6 @@ function findLineForSection(anchor: SectionAnchor, state: MatcherState): number 
     }
   }
 
-  console.log('[findLineForSection]', { anchorText: anchor.text, bestLineIndex, bestMatchCount });
   return bestLineIndex;
 }
 
