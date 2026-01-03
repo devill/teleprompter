@@ -18,16 +18,16 @@
 }
 
 .container h2 {
-  font-size: var(--text-2xl);
-  margin-top: var(--space-8);
-  margin-bottom: var(--space-3);
+  font-size: var(--text-3xl);
+  margin-top: var(--space-10);
+  margin-bottom: var(--space-4);
   font-weight: 600;
   letter-spacing: -0.01em;
 }
 
 .container h3 {
-  font-size: var(--text-xl);
-  margin-top: var(--space-6);
+  font-size: var(--text-2xl);
+  margin-top: var(--space-8);
   margin-bottom: var(--space-3);
   font-weight: 600;
 }
@@ -39,7 +39,7 @@
 }
 
 .container p {
-  margin-bottom: var(--space-5);
+  margin-bottom: var(--space-4);
 }
 
 .container ul,
