@@ -80,7 +80,7 @@ export default function CommentSidebar({ comments, positions, highlightedComment
   return (
     <div className={styles.container}>
       <ul className={styles.commentList}>
-        {comments.map((comment) => {
+        {comments.filter(c => c.id !== PENDING_COMMENT_ID).map((comment) => {
           const isNew = comment.id === newlyCreatedCommentId;
           return (
           <li

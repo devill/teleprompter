@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import styles from './CommentForm.module.css';
 
 interface CommentFormProps {
@@ -11,6 +11,12 @@ interface CommentFormProps {
 
 export default function CommentForm({ selectedText, onSubmit, onCancel }: CommentFormProps) {
   const [commentText, setCommentText] = useState('');
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    // Focus without scrolling the page
+    textareaRef.current?.focus({ preventScroll: true });
+  }, []);
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -28,12 +34,12 @@ export default function CommentForm({ selectedText, onSubmit, onCancel }: Commen
       </div>
       <form onSubmit={handleSubmit}>
         <textarea
+          ref={textareaRef}
           className={styles.textarea}
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           placeholder="Write your comment..."
           rows={4}
-          autoFocus
         />
         <div className={styles.buttonGroup}>
           <button type="button" className={styles.cancelButton} onClick={onCancel}>

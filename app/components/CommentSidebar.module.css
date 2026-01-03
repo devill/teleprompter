@@ -123,6 +123,7 @@
 
 .formItem {
   animation: formEnter 0.15s ease-out;
+  transition: none;
 }
 
 /* New comment card entrance - fade only, replaces form in place */
