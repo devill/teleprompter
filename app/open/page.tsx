@@ -11,7 +11,7 @@ export default function OpenPage() {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (filePath.trim()) {
-      router.push(`/edit?path=${encodeURIComponent(filePath.trim())}`);
+      router.push(`/teleprompter?path=${encodeURIComponent(filePath.trim())}`);
     }
   }
 

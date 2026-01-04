@@ -2,7 +2,6 @@
 
 import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { stripMarkers } from '@/app/lib/markerParser';
 import { parseSections } from '@/app/lib/sectionParser';
 import { useTeleprompterSettings } from '@/app/hooks/useTeleprompterSettings';
 import { useFullscreen } from '@/app/hooks/useFullscreen';
@@ -402,7 +401,7 @@ function TeleprompterContent() {
         if (!res.ok) throw new Error('Failed to load file');
         return res.text();
       })
-      .then(rawContent => setContent(stripMarkers(rawContent)))
+      .then(setContent)
       .catch(err => setError(err.message));
   }, [filePath]);
 
