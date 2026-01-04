@@ -4,6 +4,11 @@ import {
   processSpokenWord,
   searchForJumpTarget,
   applyJump,
+  jumpBackBlocks,
+  jumpForwardBlocks,
+  jumpToSectionStart,
+  jumpToPreviousSection,
+  jumpToNextSection,
   type MatcherState,
 } from './speechMatcher';
 import type { SectionAnchor } from './sectionParser';
@@ -203,5 +208,216 @@ describe('applyJump', () => {
     expect(result.lineIndex).toBe(2);
     expect(result.globalWordIndex).toBe(4);
     expect(newState.currentWordIndex).toBe(4);
+  });
+});
+
+describe('jumpBackBlocks', () => {
+  it('returns null when at start of document', () => {
+    const state = createMatcherState('Line one\nLine two\nLine three', []);
+    // Position is at the beginning (line 0)
+
+    const result = jumpBackBlocks(2, state);
+
+    expect(result).toBeNull();
+  });
+
+  it('jumps back correct number of lines', () => {
+    const content = 'Line zero\nLine one\nLine two\nLine three\nLine four';
+    const state = createMatcherState(content, []);
+    // Move to line 3 (words: zero, one, two, three, four at indices 0-1, 2-3, 4-5, 6-7, 8-9)
+    // Line 3 starts at globalIndex 6
+    const stateAtLine3: MatcherState = { ...state, currentWordIndex: 6 };
+
+    const result = jumpBackBlocks(2, stateAtLine3);
+
+    expect(result).not.toBeNull();
+    expect(result!.lineIndex).toBe(1); // Should jump from line 3 to line 1
+  });
+
+  it('clamps to beginning if N exceeds available lines', () => {
+    const content = 'Line zero\nLine one\nLine two\nLine three\nLine four';
+    const state = createMatcherState(content, []);
+    // Move to line 2 (globalIndex 4)
+    const stateAtLine2: MatcherState = { ...state, currentWordIndex: 4 };
+
+    const result = jumpBackBlocks(10, stateAtLine2);
+
+    expect(result).not.toBeNull();
+    expect(result!.lineIndex).toBe(0); // Should clamp to line 0
+    expect(result!.globalWordIndex).toBe(0); // First word of line 0
+  });
+});
+
+describe('jumpForwardBlocks', () => {
+  it('returns null when at end of document', () => {
+    const content = 'Line one\nLine two\nLine three';
+    const state = createMatcherState(content, []);
+    // Move to the last line (line 2, which starts at globalIndex 4)
+    const stateAtLastLine: MatcherState = { ...state, currentWordIndex: 4 };
+
+    const result = jumpForwardBlocks(2, stateAtLastLine);
+
+    expect(result).toBeNull();
+  });
+
+  it('jumps forward correct number of lines', () => {
+    const content = 'Line zero\nLine one\nLine two\nLine three\nLine four';
+    const state = createMatcherState(content, []);
+    // Start at line 1 (globalIndex 2)
+    const stateAtLine1: MatcherState = { ...state, currentWordIndex: 2 };
+
+    const result = jumpForwardBlocks(2, stateAtLine1);
+
+    expect(result).not.toBeNull();
+    expect(result!.lineIndex).toBe(3); // Should jump from line 1 to line 3
+  });
+
+  it('clamps to end if N exceeds available lines', () => {
+    const content = 'Line zero\nLine one\nLine two\nLine three\nLine four';
+    const state = createMatcherState(content, []);
+    // Start at line 2 (globalIndex 4)
+    const stateAtLine2: MatcherState = { ...state, currentWordIndex: 4 };
+
+    const result = jumpForwardBlocks(10, stateAtLine2);
+
+    expect(result).not.toBeNull();
+    expect(result!.lineIndex).toBe(4); // Should clamp to last line (line 4)
+  });
+});
+
+describe('jumpToSectionStart', () => {
+  // Test content structure:
+  // "# Section One\nContent in section one\n\n# Section Two\nContent in section two\n\n# Section Three\nContent in section three"
+  // Character indices:
+  //   "# Section One" starts at 0
+  //   "# Section Two" starts at 38
+  //   "# Section Three" starts at 76
+
+  const content = '# Section One\nContent in section one\n\n# Section Two\nContent in section two\n\n# Section Three\nContent in section three';
+
+  const anchors: SectionAnchor[] = [
+    { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 0 },
+    { id: '2', type: 'heading', level: 1, text: 'Section Two', normalizedText: 'section two', keywords: ['section', 'two'], charIndex: 38 },
+    { id: '3', type: 'heading', level: 1, text: 'Section Three', normalizedText: 'section three', keywords: ['section', 'three'], charIndex: 76 },
+  ];
+
+  it('returns null with no headings in document', () => {
+    const state = createMatcherState('Some plain text without headings', []);
+
+    const result = jumpToSectionStart(state);
+
+    expect(result).toBeNull();
+  });
+
+  it('returns the heading that contains the current position', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in "Content in section two" (line 3, which is after Section Two heading)
+    // Words: section(0), one(1), content(2), in(3), section(4), one(5), section(6), two(7), content(8), in(9), section(10), two(11), section(12), three(13), content(14), in(15), section(16), three(17)
+    // Line 3 starts at word index 8
+    const stateInSectionTwo: MatcherState = { ...state, currentWordIndex: 8 };
+
+    const result = jumpToSectionStart(stateInSectionTwo);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('section two');
+  });
+
+  it('returns null when position is before any heading', () => {
+    // Create content where headings don't start at position 0
+    const contentWithPreamble = 'Preamble text here\n\n# Section One\nContent';
+    const anchorsWithPreamble: SectionAnchor[] = [
+      { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 20 },
+    ];
+    const state = createMatcherState(contentWithPreamble, anchorsWithPreamble);
+    // Position at word 0 (in preamble, before any heading)
+
+    const result = jumpToSectionStart(state);
+
+    expect(result).toBeNull();
+  });
+
+  it('works when already on a heading line', () => {
+    const state = createMatcherState(content, anchors);
+    // Position at the start of Section Two heading line (word index 6 = "section" from "# Section Two")
+    const stateOnHeading: MatcherState = { ...state, currentWordIndex: 6 };
+
+    const result = jumpToSectionStart(stateOnHeading);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('section two');
+  });
+});
+
+describe('jumpToPreviousSection', () => {
+  const content = '# Section One\nContent in section one\n\n# Section Two\nContent in section two\n\n# Section Three\nContent in section three';
+
+  const anchors: SectionAnchor[] = [
+    { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 0 },
+    { id: '2', type: 'heading', level: 1, text: 'Section Two', normalizedText: 'section two', keywords: ['section', 'two'], charIndex: 38 },
+    { id: '3', type: 'heading', level: 1, text: 'Section Three', normalizedText: 'section three', keywords: ['section', 'three'], charIndex: 76 },
+  ];
+
+  it('returns null when no previous heading exists (at first heading)', () => {
+    const state = createMatcherState(content, anchors);
+    // Position at the first section (word index 0)
+
+    const result = jumpToPreviousSection(state);
+
+    expect(result).toBeNull();
+  });
+
+  it('returns null when before any heading', () => {
+    const contentWithPreamble = 'Preamble text\n\n# Section One\nContent';
+    const anchorsWithPreamble: SectionAnchor[] = [
+      { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 15 },
+    ];
+    const state = createMatcherState(contentWithPreamble, anchorsWithPreamble);
+    // Position at word 0 (in preamble)
+
+    const result = jumpToPreviousSection(state);
+
+    expect(result).toBeNull();
+  });
+
+  it('returns the heading before the current section heading', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section Two (word index 8 = "content" in "Content in section two")
+    const stateInSectionTwo: MatcherState = { ...state, currentWordIndex: 8 };
+
+    const result = jumpToPreviousSection(stateInSectionTwo);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('section one');
+  });
+});
+
+describe('jumpToNextSection', () => {
+  const content = '# Section One\nContent in section one\n\n# Section Two\nContent in section two\n\n# Section Three\nContent in section three';
+
+  const anchors: SectionAnchor[] = [
+    { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 0 },
+    { id: '2', type: 'heading', level: 1, text: 'Section Two', normalizedText: 'section two', keywords: ['section', 'two'], charIndex: 38 },
+    { id: '3', type: 'heading', level: 1, text: 'Section Three', normalizedText: 'section three', keywords: ['section', 'three'], charIndex: 76 },
+  ];
+
+  it('returns null when no next heading exists (after last heading)', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section Three (word index 14 = "content" in last "Content in section three")
+    const stateInSectionThree: MatcherState = { ...state, currentWordIndex: 14 };
+
+    const result = jumpToNextSection(stateInSectionThree);
+
+    expect(result).toBeNull();
+  });
+
+  it('returns the first heading after current position', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section One (word index 2 = "content" in first "Content in section one")
+    const stateInSectionOne: MatcherState = { ...state, currentWordIndex: 2 };
+
+    const result = jumpToNextSection(stateInSectionOne);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('section two');
   });
 });

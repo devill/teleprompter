@@ -192,6 +192,95 @@ export function applyJump(
   };
 }
 
+// Jump back by a number of blocks (non-empty lines)
+export function jumpBackBlocks(
+  blockCount: number,
+  state: MatcherState
+): JumpSearchResult | null {
+  if (state.words.length === 0 || blockCount <= 0) {
+    return null;
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+
+  // Already at line 0, can't go back
+  if (currentLineIndex === 0) {
+    return null;
+  }
+
+  // Calculate target line, clamping to 0
+  const targetLineIndex = Math.max(0, currentLineIndex - blockCount);
+
+  // Find the first word of the target line
+  const targetWord = state.words.find(w => w.lineIndex === targetLineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the target line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === targetLineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: targetLineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
+}
+
+// Jump forward by a number of blocks (non-empty lines)
+export function jumpForwardBlocks(
+  blockCount: number,
+  state: MatcherState
+): JumpSearchResult | null {
+  if (state.words.length === 0 || blockCount <= 0) {
+    return null;
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+  const lastLineIndex = state.lineCount - 1;
+
+  // Already at last line, can't go forward
+  if (currentLineIndex >= lastLineIndex) {
+    return null;
+  }
+
+  // Calculate target line, clamping to last line
+  const targetLineIndex = Math.min(lastLineIndex, currentLineIndex + blockCount);
+
+  // Find the first word of the target line
+  const targetWord = state.words.find(w => w.lineIndex === targetLineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the target line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === targetLineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: targetLineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
+}
+
 // Score how well target words match a line
 function scoreLineMatch(targetWords: string[], lineWords: string[]): number {
   let matchedCount = 0;
@@ -306,4 +395,177 @@ function levenshteinDistance(a: string, b: string): number {
   }
 
   return matrix[b.length][a.length];
+}
+
+// Build line groups from state words for anchor matching
+function buildLineGroups(state: MatcherState): Map<number, { words: string[]; firstWordIndex: number }> {
+  const lineGroups = new Map<number, { words: string[]; firstWordIndex: number }>();
+  for (const word of state.words) {
+    if (!lineGroups.has(word.lineIndex)) {
+      lineGroups.set(word.lineIndex, { words: [], firstWordIndex: word.globalIndex });
+    }
+    lineGroups.get(word.lineIndex)!.words.push(word.word);
+  }
+  return lineGroups;
+}
+
+// Get heading anchors with their line indices sorted by line index
+function getHeadingsWithLineIndices(
+  state: MatcherState
+): Array<{ anchor: SectionAnchor; lineIndex: number }> {
+  const headings = state.sectionAnchors.filter(a => a.type === 'heading');
+  if (headings.length === 0) {
+    return [];
+  }
+
+  const lineGroups = buildLineGroups(state);
+  const result: Array<{ anchor: SectionAnchor; lineIndex: number }> = [];
+
+  for (const anchor of headings) {
+    const lineIndex = findAnchorLine(anchor, lineGroups);
+    result.push({ anchor, lineIndex });
+  }
+
+  result.sort((a, b) => a.lineIndex - b.lineIndex);
+  return result;
+}
+
+// Jump to the start of the current section (its heading)
+export function jumpToSectionStart(state: MatcherState): JumpSearchResult | null {
+  const headingsWithLines = getHeadingsWithLineIndices(state);
+  if (headingsWithLines.length === 0) {
+    return null;
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+
+  // Find the heading whose line is <= current line (the section we're in)
+  let currentSectionHeading: { anchor: SectionAnchor; lineIndex: number } | null = null;
+  for (const h of headingsWithLines) {
+    if (h.lineIndex <= currentLineIndex) {
+      currentSectionHeading = h;
+    } else {
+      break;
+    }
+  }
+
+  if (!currentSectionHeading) {
+    // We're before any heading
+    return null;
+  }
+
+  // Find the first word of the heading's line
+  const targetWord = state.words.find(w => w.lineIndex === currentSectionHeading!.lineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the heading line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === currentSectionHeading!.lineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: currentSectionHeading.lineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
+}
+
+// Jump to the previous section heading
+export function jumpToPreviousSection(state: MatcherState): JumpSearchResult | null {
+  const headingsWithLines = getHeadingsWithLineIndices(state);
+  if (headingsWithLines.length === 0) {
+    return null;
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+
+  // Find the heading whose line is <= current line (the section we're in)
+  let currentSectionIndex = -1;
+  for (let i = 0; i < headingsWithLines.length; i++) {
+    if (headingsWithLines[i].lineIndex <= currentLineIndex) {
+      currentSectionIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  if (currentSectionIndex < 1) {
+    // We're in the first section or before any heading - no previous section
+    return null;
+  }
+
+  const previousHeading = headingsWithLines[currentSectionIndex - 1];
+
+  // Find the first word of the previous heading's line
+  const targetWord = state.words.find(w => w.lineIndex === previousHeading.lineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the heading line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === previousHeading.lineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: previousHeading.lineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
+}
+
+// Jump to the next section heading
+export function jumpToNextSection(state: MatcherState): JumpSearchResult | null {
+  const headingsWithLines = getHeadingsWithLineIndices(state);
+  if (headingsWithLines.length === 0) {
+    return null;
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+
+  // Find the first heading whose line is > current line
+  const nextHeading = headingsWithLines.find(h => h.lineIndex > currentLineIndex);
+  if (!nextHeading) {
+    return null;
+  }
+
+  // Find the first word of the next heading's line
+  const targetWord = state.words.find(w => w.lineIndex === nextHeading.lineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the heading line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === nextHeading.lineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: nextHeading.lineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
 }
