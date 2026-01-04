@@ -73,6 +73,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [error, setError] = useState<string | null>(null);
 
   const recognitionRef = useRef<SpeechRecognition | null>(null);
+  // Track intended state to ignore stale onend events
+  const wantToListenRef = useRef(false);
 
   // Check browser support after hydration
   useEffect(() => {
@@ -108,12 +110,29 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     };
 
     recognition.onerror = (event) => {
+      wantToListenRef.current = false;
       setError(event.error);
       setIsListening(false);
     };
 
     recognition.onend = () => {
-      setIsListening(false);
+      if (wantToListenRef.current) {
+        // We still want to listen but recognition stopped (browser timeout, etc.)
+        // Auto-restart after a brief delay to avoid rapid restart loops
+        setTimeout(() => {
+          if (wantToListenRef.current && recognitionRef.current) {
+            try {
+              recognitionRef.current.start();
+            } catch {
+              // Failed to restart - give up
+              wantToListenRef.current = false;
+              setIsListening(false);
+            }
+          }
+        }, 100);
+      } else {
+        setIsListening(false);
+      }
     };
 
     recognitionRef.current = recognition;
@@ -124,19 +143,27 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   }, []);
 
   const start = useCallback(() => {
-    if (!recognitionRef.current || isListening) return;
+    if (!recognitionRef.current) return;
+    // Set intention first to prevent stale onend from resetting state
+    wantToListenRef.current = true;
     setError(null);
     setTranscript('');
     setInterimTranscript('');
-    recognitionRef.current.start();
-    setIsListening(true);
-  }, [isListening]);
+    try {
+      recognitionRef.current.start();
+      setIsListening(true);
+    } catch {
+      // start() throws if already started - reset intention
+      wantToListenRef.current = false;
+    }
+  }, []);
 
   const stop = useCallback(() => {
-    if (!recognitionRef.current || !isListening) return;
+    if (!recognitionRef.current) return;
+    wantToListenRef.current = false;
     recognitionRef.current.stop();
     setIsListening(false);
-  }, [isListening]);
+  }, []);
 
   return {
     isSupported,
