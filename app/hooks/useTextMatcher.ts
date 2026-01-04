@@ -14,6 +14,7 @@ import {
   type MatchResult,
   type MatcherState,
   type JumpSearchResult,
+  type DocumentWord,
 } from '@/app/lib/speechMatcher';
 import { normalizeNumber } from '@/app/lib/textNormalizer';
 import type { SectionAnchor } from '@/app/lib/sectionParser';
@@ -115,6 +116,7 @@ interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
   onMatch?: (result: MatchResult) => void;
+  onCommand?: (commandText: string) => void;
 }
 
 export type JumpModeStatus = 'inactive' | 'listening' | 'searching' | 'success' | 'no-match';
@@ -127,12 +129,14 @@ interface UseTextMatcherReturn {
   setPosition: (wordIndex: number) => void;
   jumpModeStatus: JumpModeStatus;
   jumpTargetText: string;
+  words: DocumentWord[];
 }
 
 export function useTextMatcher({
   content,
   sectionAnchors,
   onMatch,
+  onCommand,
 }: UseTextMatcherProps): UseTextMatcherReturn {
   const [matcherState, setMatcherState] = useState<MatcherState>(() =>
     createMatcherState(content, sectionAnchors)
@@ -184,13 +188,14 @@ export function useTextMatcher({
       setJumpModeStatus('success');
       setJumpTargetText(result.matchedText);
       onMatch?.(matchResult);
+      onCommand?.(`please jump to ${targetWords.join(' ')}`);
     } else {
       setJumpModeStatus('no-match');
       setJumpTargetText(targetWords.join(' '));
     }
 
     jumpModeWordsRef.current = [];
-  }, [matcherState, onMatch]);
+  }, [matcherState, onMatch, onCommand]);
 
   const executeDirectJump = useCallback((jumpFn: () => JumpSearchResult | null, commandName: string) => {
     setJumpModeStatus('searching');
@@ -203,13 +208,14 @@ export function useTextMatcher({
       setJumpModeStatus('success');
       setJumpTargetText(result.matchedText);
       onMatch?.(matchResult);
+      onCommand?.(`please jump ${commandName}`);
     } else {
       setJumpModeStatus('no-match');
       setJumpTargetText(commandName);
     }
 
     jumpModeWordsRef.current = [];
-  }, [matcherState, onMatch]);
+  }, [matcherState, onMatch, onCommand]);
 
   const processTranscript = useCallback((transcript: string) => {
     const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
@@ -487,6 +493,7 @@ export function useTextMatcher({
     setPosition,
     jumpModeStatus,
     jumpTargetText,
+    words: matcherState.words,
   };
 }
 

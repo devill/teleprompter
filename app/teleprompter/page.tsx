@@ -8,6 +8,7 @@ import { useFullscreen } from '@/app/hooks/useFullscreen';
 import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
+import { useTranscriptRecorder } from '@/app/hooks/useTranscriptRecorder';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
@@ -40,6 +41,9 @@ function TeleprompterContent() {
   } = useSpeechRecognition();
 
   const sectionAnchors = useMemo(() => parseSections(content), [content]);
+
+  // Ref to hold recorder functions (avoids circular dependency between hooks)
+  const recorderRef = useRef<{ recordWord: (i: number) => void; recordCommand: (t: string) => void } | null>(null);
 
   // Fast scroll for jump mode (ease-in-out animation)
   const scrollToWordFast = useCallback((wordIndex: number) => {
@@ -85,11 +89,28 @@ function TeleprompterContent() {
     jumpModeStatus,
     jumpTargetText,
     setPosition,
+    words,
   } = useTextMatcher({
     content,
     sectionAnchors,
-    onMatch: (result) => scrollToWordFast(result.globalWordIndex),
+    onMatch: (result) => {
+      scrollToWordFast(result.globalWordIndex);
+      recorderRef.current?.recordWord(result.globalWordIndex);
+    },
+    onCommand: (commandText) => {
+      recorderRef.current?.recordCommand(commandText);
+    },
   });
+
+  // Initialize transcript recorder (after useTextMatcher provides words)
+  const recorder = useTranscriptRecorder({
+    filePath,
+    words,
+    isRecording: isListening,
+  });
+
+  // Update ref so callbacks use latest recorder
+  recorderRef.current = recorder;
 
   // Continuous smooth scroll with velocity-based ease in/out
   const scrollVelocityRef = useRef(0);
