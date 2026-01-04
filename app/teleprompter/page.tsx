@@ -20,10 +20,13 @@ function TeleprompterContent() {
 
   const [content, setContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
-  const [scrollMode, setScrollMode] = useState<'speech' | 'manual'>('manual');
   const [manualLineIndex, setManualLineIndex] = useState(0);
 
   const viewerRef = useRef<HTMLDivElement>(null);
+  const isUserScrollingRef = useRef(false);
+  const scrollStartPositionRef = useRef(0);
+  const scrollDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const wasListeningBeforeScrollRef = useRef(false);
 
   const { settings, updateSettings } = useTeleprompterSettings();
   const { isFullscreen, toggleFullscreen } = useFullscreen();
@@ -82,6 +85,7 @@ function TeleprompterContent() {
     currentLineIndex,
     jumpModeStatus,
     jumpTargetText,
+    setPosition,
   } = useTextMatcher({
     content,
     sectionAnchors,
@@ -92,7 +96,7 @@ function TeleprompterContent() {
   const scrollVelocityRef = useRef(0);
 
   useEffect(() => {
-    if (scrollMode !== 'speech' || !isListening) return;
+    if (!isListening) return;
 
     const container = viewerRef.current;
     if (!container) return;
@@ -169,10 +173,10 @@ function TeleprompterContent() {
       cancelAnimationFrame(animationFrameId);
       scrollVelocityRef.current = 0; // Reset velocity when stopping
     };
-  }, [scrollMode, isListening, currentWordIndex]);
+  }, [isListening, currentWordIndex]);
 
   // Use speech line index when listening, manual when not
-  const activeLineIndex = scrollMode === 'speech' && isListening ? currentLineIndex : manualLineIndex;
+  const activeLineIndex = isListening ? currentLineIndex : manualLineIndex;
 
   // Process transcript when it changes (both final and interim for responsiveness)
   useEffect(() => {
@@ -229,6 +233,105 @@ function TeleprompterContent() {
 
     animationFrameId = requestAnimationFrame(animate);
   }, []);
+
+  // Handle user scroll to move read head
+  useEffect(() => {
+    const container = viewerRef.current;
+    if (!container) return;
+
+    const MIN_SCROLL_DISTANCE = 100; // pixels to trigger manual override when listening
+    const SCROLL_DEBOUNCE_MS = 150;
+    const AUTO_RESUME_MS = 300;
+
+    const handleScrollStart = () => {
+      if (!isUserScrollingRef.current) {
+        isUserScrollingRef.current = true;
+        scrollStartPositionRef.current = container.scrollTop;
+        wasListeningBeforeScrollRef.current = isListening;
+      }
+    };
+
+    const findWordAtViewportPosition = (): number | null => {
+      const viewportHeight = container.clientHeight;
+      const targetY = container.scrollTop + viewportHeight * 0.33;
+
+      // Find all word elements and get the one closest to target position
+      const wordElements = container.querySelectorAll('[data-word-index]');
+      let closestWord: { index: number; distance: number } | null = null;
+
+      for (const el of wordElements) {
+        const rect = el.getBoundingClientRect();
+        const containerRect = container.getBoundingClientRect();
+        const elementY = container.scrollTop + (rect.top - containerRect.top) + rect.height / 2;
+        const distance = Math.abs(elementY - targetY);
+
+        if (!closestWord || distance < closestWord.distance) {
+          const wordIndex = parseInt(el.getAttribute('data-word-index') || '0', 10);
+          closestWord = { index: wordIndex, distance };
+        }
+      }
+
+      return closestWord?.index ?? null;
+    };
+
+    const handleScrollEnd = () => {
+      const scrollDistance = Math.abs(container.scrollTop - scrollStartPositionRef.current);
+      const wasListening = wasListeningBeforeScrollRef.current;
+
+      // If was listening, only respond to significant scroll
+      if (wasListening && scrollDistance < MIN_SCROLL_DISTANCE) {
+        isUserScrollingRef.current = false;
+        return;
+      }
+
+      // Find word at 1/3 viewport position and update read head
+      const wordIndex = findWordAtViewportPosition();
+      if (wordIndex !== null) {
+        setPosition(wordIndex);
+        setManualLineIndex(currentLineIndex); // sync manual line index
+      }
+
+      // If was listening, stop and auto-resume after delay
+      if (wasListening && isListening) {
+        stop();
+        setTimeout(() => {
+          start();
+        }, AUTO_RESUME_MS);
+      }
+
+      isUserScrollingRef.current = false;
+    };
+
+    const handleScroll = () => {
+      handleScrollStart();
+
+      // Debounce the scroll end detection
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current);
+      }
+      scrollDebounceRef.current = setTimeout(handleScrollEnd, SCROLL_DEBOUNCE_MS);
+    };
+
+    // Use wheel and touchmove to detect user-initiated scrolls
+    const handleWheel = () => {
+      handleScroll();
+    };
+
+    const handleTouchMove = () => {
+      handleScroll();
+    };
+
+    container.addEventListener('wheel', handleWheel, { passive: true });
+    container.addEventListener('touchmove', handleTouchMove, { passive: true });
+
+    return () => {
+      container.removeEventListener('wheel', handleWheel);
+      container.removeEventListener('touchmove', handleTouchMove);
+      if (scrollDebounceRef.current) {
+        clearTimeout(scrollDebounceRef.current);
+      }
+    };
+  }, [isListening, setPosition, currentLineIndex, start, stop]);
 
   // Keyboard navigation (for manual mode)
   const scrollUp = useCallback(() => {
@@ -323,7 +426,7 @@ function TeleprompterContent() {
         fontSize={settings.fontSize}
         marginPercentage={settings.marginPercentage}
         currentLineIndex={activeLineIndex}
-        currentWordIndex={scrollMode === 'speech' ? currentWordIndex : undefined}
+        currentWordIndex={isListening ? currentWordIndex : undefined}
       />
 
       <TeleprompterControls
@@ -333,8 +436,6 @@ function TeleprompterContent() {
         onToggleListening={() => (isListening ? stop() : start())}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
-        scrollMode={scrollMode}
-        onScrollModeChange={setScrollMode}
         speechSupported={isSupported}
       />
 

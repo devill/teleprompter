@@ -11,8 +11,6 @@ interface TeleprompterControlsProps {
   onToggleListening: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
-  scrollMode: 'speech' | 'manual';
-  onScrollModeChange: (mode: 'speech' | 'manual') => void;
   speechSupported: boolean;
 }
 
@@ -23,8 +21,6 @@ export default function TeleprompterControls({
   onToggleListening,
   isFullscreen,
   onToggleFullscreen,
-  scrollMode,
-  onScrollModeChange,
   speechSupported,
 }: TeleprompterControlsProps) {
   const [visible, setVisible] = useState(true);
@@ -89,36 +85,14 @@ export default function TeleprompterControls({
           <span className={styles.value}>{settings.marginPercentage}%</span>
         </div>
 
-        {/* Divider */}
-        <div className={styles.divider} />
-
-        {/* Scroll Mode Toggle */}
-        <div className={styles.buttonGroup}>
-          <button
-            className={`${styles.button} ${scrollMode === 'speech' ? styles.active : ''}`}
-            onClick={() => onScrollModeChange('speech')}
-            disabled={!speechSupported}
-            title={speechSupported ? 'Speech-controlled scrolling' : 'Speech not supported in this browser'}
-          >
-            🎤
-          </button>
-          <button
-            className={`${styles.button} ${scrollMode === 'manual' ? styles.active : ''}`}
-            onClick={() => onScrollModeChange('manual')}
-            title="Manual scrolling (keyboard)"
-          >
-            ⌨️
-          </button>
-        </div>
-
-        {/* Listen Toggle (when in speech mode) */}
-        {scrollMode === 'speech' && speechSupported && (
+        {/* Microphone Toggle */}
+        {speechSupported && (
           <button
             className={`${styles.button} ${isListening ? styles.listening : ''}`}
             onClick={onToggleListening}
             title={isListening ? 'Stop listening' : 'Start listening'}
           >
-            {isListening ? '⏸️' : '▶️'}
+            🎤
           </button>
         )}
 

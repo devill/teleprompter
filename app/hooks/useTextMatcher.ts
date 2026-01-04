@@ -28,6 +28,7 @@ interface UseTextMatcherReturn {
   currentWordIndex: number;
   currentLineIndex: number;
   resetPosition: () => void;
+  setPosition: (wordIndex: number) => void;
   jumpModeStatus: JumpModeStatus;
   jumpTargetText: string;
 }
@@ -207,11 +208,56 @@ export function useTextMatcher({
     setJumpTargetText('');
   }, [content, sectionAnchors]);
 
+  const setPosition = useCallback((wordIndex: number) => {
+    const wordsCount = matcherState.words.length;
+
+    // Handle empty words array
+    if (wordsCount === 0) {
+      return;
+    }
+
+    // Clamp wordIndex to valid range
+    const clampedIndex = Math.max(0, Math.min(wordIndex, wordsCount - 1));
+
+    // Look up lineIndex from the words array
+    const lineIndex = matcherState.words[clampedIndex].lineIndex;
+
+    // Update matcher state with new word index
+    setMatcherState(prevState => ({
+      ...prevState,
+      currentWordIndex: clampedIndex,
+    }));
+
+    // Update line index
+    setCurrentLineIndex(lineIndex);
+
+    // Reset transcript processing counter
+    lastProcessedCountRef.current = 0;
+
+    // Cancel jump mode if active
+    if (jumpModeStatus !== 'inactive') {
+      jumpModeWordsRef.current = [];
+      setJumpModeStatus('inactive');
+      setJumpTargetText('');
+
+      // Clear any pending timers
+      if (jumpPauseTimerRef.current) {
+        clearTimeout(jumpPauseTimerRef.current);
+        jumpPauseTimerRef.current = null;
+      }
+      if (jumpMaxWaitTimerRef.current) {
+        clearTimeout(jumpMaxWaitTimerRef.current);
+        jumpMaxWaitTimerRef.current = null;
+      }
+    }
+  }, [matcherState.words, jumpModeStatus]);
+
   return {
     processTranscript,
     currentWordIndex: matcherState.currentWordIndex,
     currentLineIndex,
     resetPosition,
+    setPosition,
     jumpModeStatus,
     jumpTargetText,
   };
