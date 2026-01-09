@@ -94,6 +94,7 @@ function TeleprompterContent() {
   } = useTextMatcher({
     content,
     sectionAnchors,
+    isListening,
     onMatch: (result) => {
       scrollToWordFast(result.globalWordIndex);
       recorderRef.current?.recordWord(result.globalWordIndex);

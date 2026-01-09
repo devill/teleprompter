@@ -115,6 +115,7 @@ function parseJumpCommand(wordsAfterBaseTrigger: string[]): JumpCommandType {
 interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
+  isListening: boolean;
   onMatch?: (result: MatchResult) => void;
   onCommand?: (commandText: string) => void;
 }
@@ -135,6 +136,7 @@ interface UseTextMatcherReturn {
 export function useTextMatcher({
   content,
   sectionAnchors,
+  isListening,
   onMatch,
   onCommand,
 }: UseTextMatcherProps): UseTextMatcherReturn {
@@ -151,6 +153,7 @@ export function useTextMatcher({
   const jumpPauseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const jumpMaxWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCommandTypeRef = useRef<'back' | 'forward' | null>(null);
+  const wasListeningRef = useRef(false);
 
   // Recreate matcher state when content changes
   useEffect(() => {
@@ -164,6 +167,15 @@ export function useTextMatcher({
     setJumpModeStatus('inactive');
     setJumpTargetText('');
   }, [content, sectionAnchors]);
+
+  // Reset transcript processing counters when listening starts
+  useEffect(() => {
+    if (isListening && !wasListeningRef.current) {
+      lastProcessedCountRef.current = 0;
+      lastTriggerWordCountRef.current = 0;
+    }
+    wasListeningRef.current = isListening;
+  }, [isListening]);
 
   // Clear success/no-match status after a delay
   useEffect(() => {
