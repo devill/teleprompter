@@ -21,6 +21,7 @@ function TeleprompterContent() {
   const [content, setContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [manualLineIndex, setManualLineIndex] = useState(0);
+  const [isRecordMode, setIsRecordMode] = useState(false);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
@@ -103,10 +104,11 @@ function TeleprompterContent() {
   });
 
   // Initialize transcript recorder (after useTextMatcher provides words)
+  // Only record transcript when in record mode, not during practice
   const recorder = useTranscriptRecorder({
     filePath,
     words,
-    isRecording: isListening,
+    isRecording: isRecordMode && isListening,
   });
 
   // Update ref so callbacks use latest recorder
@@ -453,7 +455,23 @@ function TeleprompterContent() {
         settings={settings}
         onSettingsChange={updateSettings}
         isListening={isListening}
-        onToggleListening={() => (isListening ? stop() : start())}
+        isRecordMode={isRecordMode}
+        onPracticeToggle={() => {
+          if (isListening) {
+            stop();
+          } else {
+            setIsRecordMode(false);
+            start();
+          }
+        }}
+        onRecordToggle={() => {
+          if (isListening) {
+            stop();
+          } else {
+            setIsRecordMode(true);
+            start();
+          }
+        }}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         speechSupported={isSupported}

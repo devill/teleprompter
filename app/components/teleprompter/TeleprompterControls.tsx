@@ -8,7 +8,9 @@ interface TeleprompterControlsProps {
   settings: TeleprompterSettings;
   onSettingsChange: (settings: Partial<TeleprompterSettings>) => void;
   isListening: boolean;
-  onToggleListening: () => void;
+  isRecordMode: boolean;
+  onPracticeToggle: () => void;
+  onRecordToggle: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   speechSupported: boolean;
@@ -18,7 +20,9 @@ export default function TeleprompterControls({
   settings,
   onSettingsChange,
   isListening,
-  onToggleListening,
+  isRecordMode,
+  onPracticeToggle,
+  onRecordToggle,
   isFullscreen,
   onToggleFullscreen,
   speechSupported,
@@ -85,14 +89,25 @@ export default function TeleprompterControls({
           <span className={styles.value}>{settings.marginPercentage}%</span>
         </div>
 
-        {/* Microphone Toggle */}
+        {/* Practice Mode (no transcript) */}
         {speechSupported && (
           <button
-            className={`${styles.button} ${isListening ? styles.listening : ''}`}
-            onClick={onToggleListening}
-            title={isListening ? 'Stop listening' : 'Start listening'}
+            className={`${styles.button} ${isListening && !isRecordMode ? styles.listening : ''}`}
+            onClick={onPracticeToggle}
+            title={isListening && !isRecordMode ? 'Stop practice' : 'Practice (no recording)'}
           >
             🎤
+          </button>
+        )}
+
+        {/* Record Mode (creates transcript) */}
+        {speechSupported && (
+          <button
+            className={`${styles.button} ${isListening && isRecordMode ? styles.listening : ''}`}
+            onClick={onRecordToggle}
+            title={isListening && isRecordMode ? 'Stop recording' : 'Record (saves transcript)'}
+          >
+            🔴
           </button>
         )}
 
