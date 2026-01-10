@@ -29,6 +29,11 @@ export interface JumpSearchResult {
   matchedText: string;
 }
 
+export interface SectionBounds {
+  startWordIndex: number;
+  endWordIndex: number;
+}
+
 const LOOK_AHEAD_WORDS = 5;
 const HEADER_BONUS = 50;
 const NUMBERED_SECTION_BONUS = 30;
@@ -567,5 +572,72 @@ export function jumpToNextSection(state: MatcherState): JumpSearchResult | null 
     globalWordIndex: targetWord.globalIndex,
     score: 100,
     matchedText: lineWords.join(' '),
+  };
+}
+
+// Get the boundaries of the current section for loop mode
+export function getCurrentSectionBounds(state: MatcherState): SectionBounds | null {
+  const headingsWithLines = getHeadingsWithLineIndices(state);
+
+  // If no headings, treat entire document as one section
+  if (headingsWithLines.length === 0) {
+    if (state.words.length === 0) {
+      return null;
+    }
+    return {
+      startWordIndex: 0,
+      endWordIndex: state.words.length - 1,
+    };
+  }
+
+  const currentWord = state.words[state.currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentLineIndex = currentWord.lineIndex;
+
+  // Find the current section (heading whose line <= current position)
+  let currentSectionIndex = -1;
+  for (let i = 0; i < headingsWithLines.length; i++) {
+    if (headingsWithLines[i].lineIndex <= currentLineIndex) {
+      currentSectionIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  // Before any heading - treat content from start to first heading as a section
+  if (currentSectionIndex === -1) {
+    const firstHeadingLine = headingsWithLines[0].lineIndex;
+    const endWord = state.words.findLast(w => w.lineIndex < firstHeadingLine);
+    return {
+      startWordIndex: 0,
+      endWordIndex: endWord ? endWord.globalIndex : 0,
+    };
+  }
+
+  // Find start word of current section
+  const currentHeading = headingsWithLines[currentSectionIndex];
+  const startWord = state.words.find(w => w.lineIndex === currentHeading.lineIndex);
+  if (!startWord) {
+    return null;
+  }
+
+  // Find end word: last word before next section, or last word of document
+  let endWordIndex: number;
+  if (currentSectionIndex < headingsWithLines.length - 1) {
+    // There's a next section
+    const nextHeading = headingsWithLines[currentSectionIndex + 1];
+    const endWord = state.words.findLast(w => w.lineIndex < nextHeading.lineIndex);
+    endWordIndex = endWord ? endWord.globalIndex : startWord.globalIndex;
+  } else {
+    // Last section - goes to end of document
+    endWordIndex = state.words.length - 1;
+  }
+
+  return {
+    startWordIndex: startWord.globalIndex,
+    endWordIndex,
   };
 }

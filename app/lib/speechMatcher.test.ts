@@ -9,6 +9,7 @@ import {
   jumpToSectionStart,
   jumpToPreviousSection,
   jumpToNextSection,
+  getCurrentSectionBounds,
   type MatcherState,
 } from './speechMatcher';
 import type { SectionAnchor } from './sectionParser';
@@ -419,5 +420,83 @@ describe('jumpToNextSection', () => {
 
     expect(result).not.toBeNull();
     expect(result!.matchedText).toContain('section two');
+  });
+});
+
+describe('getCurrentSectionBounds', () => {
+  const content = '# Section One\nContent in section one\n\n# Section Two\nContent in section two\n\n# Section Three\nContent in section three';
+
+  const anchors: SectionAnchor[] = [
+    { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 0 },
+    { id: '2', type: 'heading', level: 1, text: 'Section Two', normalizedText: 'section two', keywords: ['section', 'two'], charIndex: 38 },
+    { id: '3', type: 'heading', level: 1, text: 'Section Three', normalizedText: 'section three', keywords: ['section', 'three'], charIndex: 76 },
+  ];
+
+  it('returns null for empty document', () => {
+    const state = createMatcherState('', []);
+    const result = getCurrentSectionBounds(state);
+    expect(result).toBeNull();
+  });
+
+  it('treats entire document as one section when no headings', () => {
+    const state = createMatcherState('Some plain text without headings', []);
+    const result = getCurrentSectionBounds(state);
+
+    expect(result).not.toBeNull();
+    expect(result!.startWordIndex).toBe(0);
+    expect(result!.endWordIndex).toBe(state.words.length - 1);
+  });
+
+  it('returns correct bounds for first section', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section One (word index 2 = "content")
+    const stateInSectionOne: MatcherState = { ...state, currentWordIndex: 2 };
+
+    const result = getCurrentSectionBounds(stateInSectionOne);
+
+    expect(result).not.toBeNull();
+    expect(result!.startWordIndex).toBe(0); // "section" from "# Section One"
+    // Section One ends before Section Two starts
+    // Section Two is on line 3, so Section One ends at line 2
+  });
+
+  it('returns correct bounds for middle section', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section Two (word index 8 = "content" in section two's content)
+    const stateInSectionTwo: MatcherState = { ...state, currentWordIndex: 8 };
+
+    const result = getCurrentSectionBounds(stateInSectionTwo);
+
+    expect(result).not.toBeNull();
+    // Section Two starts at word 6 ("section" from "# Section Two")
+    expect(result!.startWordIndex).toBe(6);
+    // Should end before Section Three
+  });
+
+  it('returns correct bounds for last section', () => {
+    const state = createMatcherState(content, anchors);
+    // Position in Section Three (word index 14)
+    const stateInSectionThree: MatcherState = { ...state, currentWordIndex: 14 };
+
+    const result = getCurrentSectionBounds(stateInSectionThree);
+
+    expect(result).not.toBeNull();
+    // Last section goes to end of document
+    expect(result!.endWordIndex).toBe(state.words.length - 1);
+  });
+
+  it('handles preamble before first heading', () => {
+    const contentWithPreamble = 'Preamble text here\n\n# Section One\nContent';
+    const anchorsWithPreamble: SectionAnchor[] = [
+      { id: '1', type: 'heading', level: 1, text: 'Section One', normalizedText: 'section one', keywords: ['section', 'one'], charIndex: 20 },
+    ];
+    const state = createMatcherState(contentWithPreamble, anchorsWithPreamble);
+    // Position at word 0 (in preamble)
+
+    const result = getCurrentSectionBounds(state);
+
+    expect(result).not.toBeNull();
+    expect(result!.startWordIndex).toBe(0);
+    // Should end before the heading line
   });
 });

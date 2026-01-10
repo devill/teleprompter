@@ -11,6 +11,7 @@ import {
   jumpToSectionStart,
   jumpToPreviousSection,
   jumpToNextSection,
+  getCurrentSectionBounds,
   type MatchResult,
   type MatcherState,
   type JumpSearchResult,
@@ -22,6 +23,8 @@ import type { SectionAnchor } from '@/app/lib/sectionParser';
 const JUMP_BASE_TRIGGER = ['please', 'jump'];
 const JUMP_PAUSE_MS = 800;
 const JUMP_MAX_WAIT_MS = 5000; // Cancel listening mode if no target words arrive
+const LOOP_SILENCE_MS = 1000; // Trigger loop after silence when prompter is behind
+const LOOP_END_THRESHOLD = 3; // Within 3 words of section end triggers silence check
 
 function parseSpokenNumber(word: string): number | null {
   const direct = parseInt(word, 10);
@@ -116,6 +119,7 @@ interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
   isListening: boolean;
+  isLoopMode?: boolean;
   onMatch?: (result: MatchResult) => void;
   onCommand?: (commandText: string) => void;
 }
@@ -137,6 +141,7 @@ export function useTextMatcher({
   content,
   sectionAnchors,
   isListening,
+  isLoopMode = false,
   onMatch,
   onCommand,
 }: UseTextMatcherProps): UseTextMatcherReturn {
@@ -154,6 +159,8 @@ export function useTextMatcher({
   const jumpMaxWaitTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const pendingCommandTypeRef = useRef<'back' | 'forward' | null>(null);
   const wasListeningRef = useRef(false);
+  const loopSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loopSectionBoundsRef = useRef<{ startWordIndex: number; endWordIndex: number } | null>(null);
 
   // Recreate matcher state when content changes
   useEffect(() => {
@@ -176,6 +183,24 @@ export function useTextMatcher({
     }
     wasListeningRef.current = isListening;
   }, [isListening]);
+
+  // Set up loop section bounds when loop mode enabled, clear when disabled
+  useEffect(() => {
+    if (isLoopMode && isListening) {
+      // Initialize loop bounds to current section when loop mode is enabled
+      if (!loopSectionBoundsRef.current) {
+        const bounds = getCurrentSectionBounds(matcherState);
+        loopSectionBoundsRef.current = bounds;
+      }
+    } else {
+      // Clear loop state when loop mode disabled or not listening
+      loopSectionBoundsRef.current = null;
+      if (loopSilenceTimerRef.current) {
+        clearTimeout(loopSilenceTimerRef.current);
+        loopSilenceTimerRef.current = null;
+      }
+    }
+  }, [isLoopMode, isListening, matcherState]);
 
   // Clear success/no-match status after a delay
   useEffect(() => {
@@ -201,13 +226,19 @@ export function useTextMatcher({
       setJumpTargetText(result.matchedText);
       onMatch?.(matchResult);
       onCommand?.(`please jump to ${targetWords.join(' ')}`);
+
+      // Update loop bounds if loop mode is active (jumping changes the loop section)
+      if (isLoopMode) {
+        const newBounds = getCurrentSectionBounds(newState);
+        loopSectionBoundsRef.current = newBounds;
+      }
     } else {
       setJumpModeStatus('no-match');
       setJumpTargetText(targetWords.join(' '));
     }
 
     jumpModeWordsRef.current = [];
-  }, [matcherState, onMatch, onCommand]);
+  }, [matcherState, onMatch, onCommand, isLoopMode]);
 
   const executeDirectJump = useCallback((jumpFn: () => JumpSearchResult | null, commandName: string) => {
     setJumpModeStatus('searching');
@@ -221,13 +252,19 @@ export function useTextMatcher({
       setJumpTargetText(result.matchedText);
       onMatch?.(matchResult);
       onCommand?.(`please jump ${commandName}`);
+
+      // Update loop bounds if loop mode is active (jumping changes the loop section)
+      if (isLoopMode) {
+        const newBounds = getCurrentSectionBounds(newState);
+        loopSectionBoundsRef.current = newBounds;
+      }
     } else {
       setJumpModeStatus('no-match');
       setJumpTargetText(commandName);
     }
 
     jumpModeWordsRef.current = [];
-  }, [matcherState, onMatch, onCommand]);
+  }, [matcherState, onMatch, onCommand, isLoopMode]);
 
   const processTranscript = useCallback((transcript: string) => {
     const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
@@ -438,8 +475,68 @@ export function useTextMatcher({
       }
     }
 
+    // Loop mode: check if we've gone past the loop section's end
+    const loopBounds = loopSectionBoundsRef.current;
+    if (isLoopMode && jumpModeStatus === 'inactive' && loopBounds) {
+      const currentPos = currentState.currentWordIndex;
+
+      // If we've gone past the loop section's end, immediately jump back
+      if (currentPos > loopBounds.endWordIndex) {
+        // Clear any pending timer
+        if (loopSilenceTimerRef.current) {
+          clearTimeout(loopSilenceTimerRef.current);
+          loopSilenceTimerRef.current = null;
+        }
+
+        // Jump back to the loop section's start
+        const jumpResult: JumpSearchResult = {
+          lineIndex: currentState.words[loopBounds.startWordIndex]?.lineIndex ?? 0,
+          globalWordIndex: loopBounds.startWordIndex,
+          score: 100,
+          matchedText: 'loop',
+        };
+        const { result: matchResult, newState } = applyJump(jumpResult, currentState);
+        setMatcherState(newState);
+        setCurrentLineIndex(matchResult.lineIndex);
+        onMatch?.(matchResult);
+        return;
+      }
+
+      // If within threshold of end, start silence timer (for when prompter is behind)
+      const wordsFromEnd = loopBounds.endWordIndex - currentPos;
+      if (wordsFromEnd <= LOOP_END_THRESHOLD && wordsFromEnd >= 0) {
+        // Near end - start/restart silence timer as backup
+        if (loopSilenceTimerRef.current) {
+          clearTimeout(loopSilenceTimerRef.current);
+        }
+        loopSilenceTimerRef.current = setTimeout(() => {
+          // Jump back to loop section start
+          const startWord = matcherState.words[loopBounds.startWordIndex];
+          if (startWord) {
+            const jumpResult: JumpSearchResult = {
+              lineIndex: startWord.lineIndex,
+              globalWordIndex: loopBounds.startWordIndex,
+              score: 100,
+              matchedText: 'loop',
+            };
+            const { result: matchResult, newState } = applyJump(jumpResult, matcherState);
+            setMatcherState(newState);
+            setCurrentLineIndex(matchResult.lineIndex);
+            onMatch?.(matchResult);
+          }
+          loopSilenceTimerRef.current = null;
+        }, LOOP_SILENCE_MS);
+      } else if (wordsFromEnd > LOOP_END_THRESHOLD) {
+        // Not near end - clear any pending timer
+        if (loopSilenceTimerRef.current) {
+          clearTimeout(loopSilenceTimerRef.current);
+          loopSilenceTimerRef.current = null;
+        }
+      }
+    }
+
     setMatcherState(currentState);
-  }, [matcherState, onMatch, jumpModeStatus, executeJumpSearch, executeDirectJump]);
+  }, [matcherState, onMatch, onCommand, jumpModeStatus, executeJumpSearch, executeDirectJump, isLoopMode]);
 
   const resetPosition = useCallback(() => {
     setMatcherState(createMatcherState(content, sectionAnchors));
@@ -450,6 +547,11 @@ export function useTextMatcher({
     pendingCommandTypeRef.current = null;
     setJumpModeStatus('inactive');
     setJumpTargetText('');
+    loopSectionBoundsRef.current = null;
+    if (loopSilenceTimerRef.current) {
+      clearTimeout(loopSilenceTimerRef.current);
+      loopSilenceTimerRef.current = null;
+    }
   }, [content, sectionAnchors]);
 
   const setPosition = useCallback((wordIndex: number) => {

@@ -55,3 +55,5 @@ npm run test:watch # Run tests in watch mode
 ### Key Systems
 
 **Teleprompter Speech Matching**: Uses Web Speech API. The `speechMatcher` tracks position word-by-word with fuzzy matching. Jump commands use trigger phrase "please jump to" followed by target text.
+
+**Transcript Recording**: In record mode, the transcript file captures only what the user actually said - matched words and voice commands. Automatic behaviors (like loop mode jumps) must NOT be recorded since the user didn't speak them.

@@ -11,6 +11,8 @@ interface TeleprompterControlsProps {
   isRecordMode: boolean;
   onPracticeToggle: () => void;
   onRecordToggle: () => void;
+  isLoopMode: boolean;
+  onLoopModeToggle: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   speechSupported: boolean;
@@ -23,6 +25,8 @@ export default function TeleprompterControls({
   isRecordMode,
   onPracticeToggle,
   onRecordToggle,
+  isLoopMode,
+  onLoopModeToggle,
   isFullscreen,
   onToggleFullscreen,
   speechSupported,
@@ -108,6 +112,17 @@ export default function TeleprompterControls({
             title={isListening && isRecordMode ? 'Stop recording' : 'Record (saves transcript)'}
           >
             🔴
+          </button>
+        )}
+
+        {/* Loop Mode */}
+        {speechSupported && (
+          <button
+            className={`${styles.button} ${isLoopMode ? styles.active : ''}`}
+            onClick={onLoopModeToggle}
+            title={isLoopMode ? 'Disable section loop' : 'Enable section loop'}
+          >
+            🔁
           </button>
         )}
 

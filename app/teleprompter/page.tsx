@@ -22,6 +22,7 @@ function TeleprompterContent() {
   const [error, setError] = useState<string | null>(null);
   const [manualLineIndex, setManualLineIndex] = useState(0);
   const [isRecordMode, setIsRecordMode] = useState(false);
+  const [isLoopMode, setIsLoopMode] = useState(false);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
@@ -95,6 +96,7 @@ function TeleprompterContent() {
     content,
     sectionAnchors,
     isListening,
+    isLoopMode,
     onMatch: (result) => {
       scrollToWordFast(result.globalWordIndex);
       recorderRef.current?.recordWord(result.globalWordIndex);
@@ -473,6 +475,8 @@ function TeleprompterContent() {
             start();
           }
         }}
+        isLoopMode={isLoopMode}
+        onLoopModeToggle={() => setIsLoopMode(prev => !prev)}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         speechSupported={isSupported}
