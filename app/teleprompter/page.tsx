@@ -43,6 +43,7 @@ function TeleprompterContent() {
     isSupported,
     isListening,
     isReconnecting,
+    reconnectSuccess,
     transcript,
     interimTranscript,
     start,
@@ -129,6 +130,8 @@ function TeleprompterContent() {
     content,
     sectionAnchors,
     isListening,
+    reconnectSuccess,
+    finalTranscript: transcript,
     isLoopMode: state.isLoopMode,
     loopSectionBounds: state.loopSectionBounds,
     wordIndex: state.wordIndex,
@@ -546,6 +549,7 @@ function TeleprompterContent() {
       <SpeechIndicator
         isListening={isListening}
         isReconnecting={isReconnecting}
+        reconnectSuccess={reconnectSuccess}
         interimTranscript={interimTranscript}
         error={speechError}
         jumpModeStatus={jumpModeStatus}

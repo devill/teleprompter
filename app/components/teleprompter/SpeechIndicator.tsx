@@ -6,6 +6,7 @@ import styles from './SpeechIndicator.module.css';
 interface SpeechIndicatorProps {
   isListening: boolean;
   isReconnecting?: boolean;
+  reconnectSuccess?: boolean;
   interimTranscript: string;
   confidence?: number;
   error?: string | null;
@@ -16,6 +17,7 @@ interface SpeechIndicatorProps {
 export default function SpeechIndicator({
   isListening,
   isReconnecting = false,
+  reconnectSuccess = false,
   interimTranscript,
   confidence,
   error,
@@ -24,7 +26,7 @@ export default function SpeechIndicator({
 }: SpeechIndicatorProps) {
   const showJumpMode = jumpModeStatus !== 'inactive';
 
-  if (!isListening && !isReconnecting && !error && !showJumpMode) return null;
+  if (!isListening && !isReconnecting && !reconnectSuccess && !error && !showJumpMode) return null;
 
   return (
     <div className={styles.container}>
@@ -46,6 +48,15 @@ export default function SpeechIndicator({
             </div>
           )}
 
+          {reconnectSuccess && (
+            <div className={styles.reconnectSuccess}>
+              <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+                <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/>
+              </svg>
+              <span>Reconnected</span>
+            </div>
+          )}
+
           {interimTranscript && (
             <div className={styles.transcript}>
               {interimTranscript}
@@ -63,7 +74,11 @@ export default function SpeechIndicator({
 
           {error && (
             <div className={styles.error}>
-              {error === 'not-allowed' ? 'Microphone access denied' : `Error: ${error}`}
+              {error === 'not-allowed'
+                ? 'Microphone access denied'
+                : error === 'network'
+                  ? 'Connection lost'
+                  : `Error: ${error}`}
             </div>
           )}
         </>

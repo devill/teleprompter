@@ -122,6 +122,8 @@ interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
   isListening: boolean;
+  reconnectSuccess?: boolean;
+  finalTranscript?: string;
   isLoopMode?: boolean;
   loopSectionBounds: SectionBounds | null;
   wordIndex: number;
@@ -145,6 +147,8 @@ export function useTextMatcher({
   content,
   sectionAnchors,
   isListening,
+  reconnectSuccess = false,
+  finalTranscript = '',
   isLoopMode = false,
   loopSectionBounds,
   wordIndex,
@@ -196,6 +200,20 @@ export function useTextMatcher({
     }
     wasListeningRef.current = isListening;
   }, [isListening]);
+
+  // Reset transcript processing counters after reconnection
+  // Set to the final transcript's word count (not 0) to avoid reprocessing old words
+  // This is needed because the old interim transcript may have inflated lastProcessedCount
+  // and the new session's transcript starts fresh with potentially fewer words
+  useEffect(() => {
+    if (reconnectSuccess) {
+      const finalWordCount = finalTranscript.trim()
+        ? finalTranscript.toLowerCase().split(/\s+/).filter(w => w.length > 0).length
+        : 0;
+      lastProcessedCountRef.current = finalWordCount;
+      lastTriggerWordCountRef.current = finalWordCount;
+    }
+  }, [reconnectSuccess, finalTranscript]);
 
   // Initialize loop bounds when loop mode is enabled and listening starts
   useEffect(() => {

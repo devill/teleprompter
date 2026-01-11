@@ -59,6 +59,7 @@ export interface UseSpeechRecognitionReturn {
   isSupported: boolean;        // Browser supports Speech API
   isListening: boolean;        // Currently listening
   isReconnecting: boolean;     // Attempting to reconnect after network error
+  reconnectSuccess: boolean;   // Just reconnected successfully (brief flash)
   transcript: string;          // Final recognized text
   interimTranscript: string;   // In-progress text
   start: () => void;
@@ -75,6 +76,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
+  const [reconnectSuccess, setReconnectSuccess] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -84,6 +86,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const wantToListenRef = useRef(false);
   const retryCountRef = useRef(0);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Track reconnection state in ref so onend can check it
+  const isReconnectingRef = useRef(false);
 
   // Check browser support after hydration
   useEffect(() => {
@@ -101,6 +106,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     const scheduleRetry = () => {
       if (retryCountRef.current >= MAX_RETRIES) {
+        isReconnectingRef.current = false;
         setError('network');
         setIsReconnecting(false);
         setIsListening(false);
@@ -127,7 +133,21 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     recognition.onstart = () => {
       retryCountRef.current = 0;
-      setIsReconnecting(false);
+
+      // Show success message if we just recovered from reconnection
+      if (isReconnectingRef.current) {
+        isReconnectingRef.current = false;
+        setIsReconnecting(false);
+        setReconnectSuccess(true);
+        // Clear any existing success timeout
+        if (successTimeoutRef.current) {
+          clearTimeout(successTimeoutRef.current);
+        }
+        // Auto-hide success message after 2 seconds
+        successTimeoutRef.current = setTimeout(() => {
+          setReconnectSuccess(false);
+        }, 2000);
+      }
     };
 
     recognition.onresult = (event) => {
@@ -151,6 +171,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
 
     recognition.onerror = (event) => {
       if (event.error === 'network' && wantToListenRef.current) {
+        isReconnectingRef.current = true;
         setIsReconnecting(true);
         scheduleRetry();
       } else {
@@ -161,11 +182,16 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     };
 
     recognition.onend = () => {
+      // Don't interfere if we're handling a network reconnection
+      if (isReconnectingRef.current) {
+        return;
+      }
+
       if (wantToListenRef.current) {
         // We still want to listen but recognition stopped (browser timeout, etc.)
         // Auto-restart after a brief delay to avoid rapid restart loops
         setTimeout(() => {
-          if (wantToListenRef.current && recognitionRef.current) {
+          if (wantToListenRef.current && recognitionRef.current && !isReconnectingRef.current) {
             try {
               recognitionRef.current.start();
             } catch {
@@ -185,6 +211,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     return () => {
       if (retryTimeoutRef.current) {
         clearTimeout(retryTimeoutRef.current);
+      }
+      if (successTimeoutRef.current) {
+        clearTimeout(successTimeoutRef.current);
       }
       recognition.stop();
     };
@@ -217,6 +246,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     isSupported,
     isListening,
     isReconnecting,
+    reconnectSuccess,
     transcript,
     interimTranscript,
     start,
