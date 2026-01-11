@@ -113,13 +113,20 @@ function parseJumpCommand(wordsAfterBaseTrigger: string[]): JumpCommandType {
   return { type: 'incomplete' };
 }
 
+interface SectionBounds {
+  startWordIndex: number;
+  endWordIndex: number;
+}
+
 interface UseTextMatcherProps {
   content: string;
   sectionAnchors: SectionAnchor[];
   isListening: boolean;
   isLoopMode?: boolean;
+  loopSectionBounds: SectionBounds | null;
   wordIndex: number;
   onWordIndexChange: (index: number) => void;
+  onLoopBoundsChange: (bounds: SectionBounds | null) => void;
   onMatch?: (result: MatchResult) => void;
   onCommand?: (commandText: string) => void;
 }
@@ -139,8 +146,10 @@ export function useTextMatcher({
   sectionAnchors,
   isListening,
   isLoopMode = false,
+  loopSectionBounds,
   wordIndex,
   onWordIndexChange,
+  onLoopBoundsChange,
   onMatch,
   onCommand,
 }: UseTextMatcherProps): UseTextMatcherReturn {
@@ -158,7 +167,6 @@ export function useTextMatcher({
   const pendingCommandTypeRef = useRef<'back' | 'forward' | null>(null);
   const wasListeningRef = useRef(false);
   const loopSilenceTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const loopSectionBoundsRef = useRef<{ startWordIndex: number; endWordIndex: number } | null>(null);
 
   // Derive lineIndex from wordIndex and words
   const lineIndex = useMemo(() => {
@@ -189,21 +197,20 @@ export function useTextMatcher({
     wasListeningRef.current = isListening;
   }, [isListening]);
 
-  // Set up loop section bounds when loop mode enabled, clear when disabled
+  // Initialize loop bounds when loop mode is enabled and listening starts
   useEffect(() => {
-    if (isLoopMode && isListening) {
-      if (!loopSectionBoundsRef.current) {
-        const bounds = getCurrentSectionBounds(documentState, wordIndex);
-        loopSectionBoundsRef.current = bounds;
-      }
-    } else {
-      loopSectionBoundsRef.current = null;
+    if (isLoopMode && isListening && !loopSectionBounds) {
+      const bounds = getCurrentSectionBounds(documentState, wordIndex);
+      onLoopBoundsChange(bounds);
+    }
+    // Clear silence timer when loop mode is disabled
+    if (!isLoopMode || !isListening) {
       if (loopSilenceTimerRef.current) {
         clearTimeout(loopSilenceTimerRef.current);
         loopSilenceTimerRef.current = null;
       }
     }
-  }, [isLoopMode, isListening, documentState, wordIndex]);
+  }, [isLoopMode, isListening, loopSectionBounds, documentState, wordIndex, onLoopBoundsChange]);
 
   // Clear success/no-match status after a delay
   useEffect(() => {
@@ -231,7 +238,7 @@ export function useTextMatcher({
 
       if (isLoopMode) {
         const newBounds = getCurrentSectionBounds(documentState, newWordIndex);
-        loopSectionBoundsRef.current = newBounds;
+        onLoopBoundsChange(newBounds);
       }
     } else {
       setJumpModeStatus('no-match');
@@ -239,7 +246,7 @@ export function useTextMatcher({
     }
 
     jumpModeWordsRef.current = [];
-  }, [documentState, wordIndex, onWordIndexChange, onMatch, onCommand, isLoopMode]);
+  }, [documentState, wordIndex, onWordIndexChange, onMatch, onCommand, isLoopMode, onLoopBoundsChange]);
 
   const executeDirectJump = useCallback((jumpFn: () => JumpSearchResult | null, commandName: string) => {
     setJumpModeStatus('searching');
@@ -255,7 +262,7 @@ export function useTextMatcher({
 
       if (isLoopMode) {
         const newBounds = getCurrentSectionBounds(documentState, newWordIndex);
-        loopSectionBoundsRef.current = newBounds;
+        onLoopBoundsChange(newBounds);
       }
     } else {
       setJumpModeStatus('no-match');
@@ -263,7 +270,7 @@ export function useTextMatcher({
     }
 
     jumpModeWordsRef.current = [];
-  }, [documentState, onWordIndexChange, onMatch, onCommand, isLoopMode]);
+  }, [documentState, onWordIndexChange, onMatch, onCommand, isLoopMode, onLoopBoundsChange]);
 
   const processTranscript = useCallback((transcript: string) => {
     const words = transcript.toLowerCase().split(/\s+/).filter(w => w.length > 0);
@@ -451,17 +458,16 @@ export function useTextMatcher({
     }
 
     // Loop mode: check if we've gone past the loop section's end
-    const loopBounds = loopSectionBoundsRef.current;
-    if (isLoopMode && jumpModeStatus === 'inactive' && loopBounds) {
-      if (currentWordIdx > loopBounds.endWordIndex) {
+    if (isLoopMode && jumpModeStatus === 'inactive' && loopSectionBounds) {
+      if (currentWordIdx > loopSectionBounds.endWordIndex) {
         if (loopSilenceTimerRef.current) {
           clearTimeout(loopSilenceTimerRef.current);
           loopSilenceTimerRef.current = null;
         }
 
         const jumpResult: JumpSearchResult = {
-          lineIndex: documentState.words[loopBounds.startWordIndex]?.lineIndex ?? 0,
-          globalWordIndex: loopBounds.startWordIndex,
+          lineIndex: documentState.words[loopSectionBounds.startWordIndex]?.lineIndex ?? 0,
+          globalWordIndex: loopSectionBounds.startWordIndex,
           score: 100,
           matchedText: 'loop',
         };
@@ -471,17 +477,17 @@ export function useTextMatcher({
         return;
       }
 
-      const wordsFromEnd = loopBounds.endWordIndex - currentWordIdx;
+      const wordsFromEnd = loopSectionBounds.endWordIndex - currentWordIdx;
       if (wordsFromEnd <= LOOP_END_THRESHOLD && wordsFromEnd >= 0) {
         if (loopSilenceTimerRef.current) {
           clearTimeout(loopSilenceTimerRef.current);
         }
         loopSilenceTimerRef.current = setTimeout(() => {
-          const startWord = documentState.words[loopBounds.startWordIndex];
+          const startWord = documentState.words[loopSectionBounds.startWordIndex];
           if (startWord) {
             const jumpResult: JumpSearchResult = {
               lineIndex: startWord.lineIndex,
-              globalWordIndex: loopBounds.startWordIndex,
+              globalWordIndex: loopSectionBounds.startWordIndex,
               score: 100,
               matchedText: 'loop',
             };
@@ -503,7 +509,7 @@ export function useTextMatcher({
     if (currentWordIdx !== wordIndex) {
       onWordIndexChange(currentWordIdx);
     }
-  }, [documentState, wordIndex, onWordIndexChange, onMatch, jumpModeStatus, executeJumpSearch, executeDirectJump, isLoopMode]);
+  }, [documentState, wordIndex, onWordIndexChange, onMatch, jumpModeStatus, executeJumpSearch, executeDirectJump, isLoopMode, loopSectionBounds]);
 
   return {
     processTranscript,

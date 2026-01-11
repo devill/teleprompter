@@ -2,16 +2,23 @@
 
 import { useState, useCallback, useEffect } from 'react';
 
+export interface SectionBounds {
+  startWordIndex: number;
+  endWordIndex: number;
+}
+
 export interface TeleprompterState {
   wordIndex: number;
   isRecordMode: boolean;
   isLoopMode: boolean;
+  loopSectionBounds: SectionBounds | null;
 }
 
 const INITIAL_STATE: TeleprompterState = {
   wordIndex: 0,
   isRecordMode: false,
   isLoopMode: false,
+  loopSectionBounds: null,
 };
 
 export interface UseTeleprompterStateReturn {
@@ -19,6 +26,7 @@ export interface UseTeleprompterStateReturn {
   setWordIndex: (index: number) => void;
   setIsRecordMode: (value: boolean) => void;
   setIsLoopMode: (value: boolean) => void;
+  setLoopSectionBounds: (bounds: SectionBounds | null) => void;
   reset: () => void;
 }
 
@@ -59,7 +67,23 @@ export function useTeleprompterState(
   const setIsLoopMode = useCallback((value: boolean) => {
     setState(prev => {
       if (prev.isLoopMode === value) return prev;
+      // Clear loop bounds when loop mode is disabled
+      if (!value) {
+        return { ...prev, isLoopMode: value, loopSectionBounds: null };
+      }
       return { ...prev, isLoopMode: value };
+    });
+  }, []);
+
+  const setLoopSectionBounds = useCallback((bounds: SectionBounds | null) => {
+    setState(prev => {
+      if (prev.loopSectionBounds === bounds) return prev;
+      if (bounds && prev.loopSectionBounds &&
+          bounds.startWordIndex === prev.loopSectionBounds.startWordIndex &&
+          bounds.endWordIndex === prev.loopSectionBounds.endWordIndex) {
+        return prev;
+      }
+      return { ...prev, loopSectionBounds: bounds };
     });
   }, []);
 
@@ -72,6 +96,7 @@ export function useTeleprompterState(
     setWordIndex,
     setIsRecordMode,
     setIsLoopMode,
+    setLoopSectionBounds,
     reset,
   };
 }

@@ -18,6 +18,11 @@ describe('useTeleprompterState', () => {
       const { result } = renderHook(() => useTeleprompterState(100));
       expect(result.current.state.isLoopMode).toBe(false);
     });
+
+    it('starts with loopSectionBounds null', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      expect(result.current.state.loopSectionBounds).toBe(null);
+    });
   });
 
   describe('setWordIndex', () => {
@@ -110,6 +115,62 @@ describe('useTeleprompterState', () => {
 
       expect(result.current.state.isLoopMode).toBe(false);
     });
+
+    it('clears loopSectionBounds when setting isLoopMode to false', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setIsLoopMode(true);
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
+      });
+      expect(result.current.state.loopSectionBounds).toEqual({ startWordIndex: 10, endWordIndex: 50 });
+
+      act(() => {
+        result.current.setIsLoopMode(false);
+      });
+
+      expect(result.current.state.loopSectionBounds).toBe(null);
+    });
+  });
+
+  describe('setLoopSectionBounds', () => {
+    it('updates loopSectionBounds', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
+      });
+
+      expect(result.current.state.loopSectionBounds).toEqual({ startWordIndex: 10, endWordIndex: 50 });
+    });
+
+    it('can set loopSectionBounds to null', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
+      });
+      act(() => {
+        result.current.setLoopSectionBounds(null);
+      });
+
+      expect(result.current.state.loopSectionBounds).toBe(null);
+    });
+
+    it('returns same state when setting equivalent bounds', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
+      });
+      const stateAfterFirstSet = result.current.state;
+
+      act(() => {
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
+      });
+
+      expect(result.current.state).toBe(stateAfterFirstSet);
+    });
   });
 
   describe('reset', () => {
@@ -120,6 +181,7 @@ describe('useTeleprompterState', () => {
         result.current.setWordIndex(50);
         result.current.setIsRecordMode(true);
         result.current.setIsLoopMode(true);
+        result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
       });
 
       act(() => {
@@ -129,6 +191,7 @@ describe('useTeleprompterState', () => {
       expect(result.current.state.wordIndex).toBe(0);
       expect(result.current.state.isRecordMode).toBe(false);
       expect(result.current.state.isLoopMode).toBe(false);
+      expect(result.current.state.loopSectionBounds).toBe(null);
     });
   });
 

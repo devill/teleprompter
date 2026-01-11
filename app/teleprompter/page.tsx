@@ -16,6 +16,7 @@ import {
   jumpToPreviousSection,
   jumpToNextParagraph,
   jumpToPreviousParagraph,
+  getCurrentSectionBounds,
 } from '@/app/lib/speechMatcher';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
@@ -66,10 +67,20 @@ function TeleprompterContent() {
     setWordIndex,
     setIsRecordMode,
     setIsLoopMode,
+    setLoopSectionBounds,
   } = useTeleprompterState(wordsCount);
 
   // Ref to hold recorder functions (avoids circular dependency between hooks)
   const recorderRef = useRef<{ recordWord: (i: number) => void; recordCommand: (t: string) => void } | null>(null);
+
+  // Navigation helper that updates both wordIndex and loop bounds (for explicit navigation)
+  const navigateToWord = useCallback((wordIndex: number) => {
+    setWordIndex(wordIndex);
+    if (state.isLoopMode && documentState) {
+      const newBounds = getCurrentSectionBounds(documentState, wordIndex);
+      setLoopSectionBounds(newBounds);
+    }
+  }, [setWordIndex, state.isLoopMode, documentState, setLoopSectionBounds]);
 
   // Fast scroll for jump mode (ease-in-out animation)
   const scrollToWordFast = useCallback((wordIndex: number) => {
@@ -119,8 +130,10 @@ function TeleprompterContent() {
     sectionAnchors,
     isListening,
     isLoopMode: state.isLoopMode,
+    loopSectionBounds: state.loopSectionBounds,
     wordIndex: state.wordIndex,
     onWordIndexChange: setWordIndex,
+    onLoopBoundsChange: setLoopSectionBounds,
     onMatch: (result) => {
       scrollToWordFast(result.globalWordIndex);
       recorderRef.current?.recordWord(result.globalWordIndex);
@@ -384,42 +397,42 @@ function TeleprompterContent() {
     };
   }, [isListening, setWordIndex, lineIndex, start, stop]);
 
-  // Keyboard navigation
+  // Keyboard navigation - uses navigateToWord to update loop bounds when in loop mode
   const navigateToPreviousSection = useCallback(() => {
     if (!documentState) return;
     const result = jumpToPreviousSection(documentState, state.wordIndex);
     if (result) {
-      setWordIndex(result.globalWordIndex);
+      navigateToWord(result.globalWordIndex);
       scrollToWordFast(result.globalWordIndex);
     }
-  }, [documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+  }, [documentState, state.wordIndex, navigateToWord, scrollToWordFast]);
 
   const navigateToNextSection = useCallback(() => {
     if (!documentState) return;
     const result = jumpToNextSection(documentState, state.wordIndex);
     if (result) {
-      setWordIndex(result.globalWordIndex);
+      navigateToWord(result.globalWordIndex);
       scrollToWordFast(result.globalWordIndex);
     }
-  }, [documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+  }, [documentState, state.wordIndex, navigateToWord, scrollToWordFast]);
 
   const navigateToPreviousParagraph = useCallback(() => {
     if (!documentState || !content) return;
     const result = jumpToPreviousParagraph(content, documentState, state.wordIndex);
     if (result) {
-      setWordIndex(result.globalWordIndex);
+      navigateToWord(result.globalWordIndex);
       scrollToWordFast(result.globalWordIndex);
     }
-  }, [content, documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+  }, [content, documentState, state.wordIndex, navigateToWord, scrollToWordFast]);
 
   const navigateToNextParagraph = useCallback(() => {
     if (!documentState || !content) return;
     const result = jumpToNextParagraph(content, documentState, state.wordIndex);
     if (result) {
-      setWordIndex(result.globalWordIndex);
+      navigateToWord(result.globalWordIndex);
       scrollToWordFast(result.globalWordIndex);
     }
-  }, [content, documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+  }, [content, documentState, state.wordIndex, navigateToWord, scrollToWordFast]);
 
   const pageUp = useCallback(() => {
     setManualLineIndex(prev => {
