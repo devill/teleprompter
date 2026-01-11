@@ -10,6 +10,9 @@ import {
   jumpToPreviousSection,
   jumpToNextSection,
   getCurrentSectionBounds,
+  charIndexToLineIndex,
+  jumpToNextParagraph,
+  jumpToPreviousParagraph,
   type DocumentState,
 } from './speechMatcher';
 import type { SectionAnchor } from './sectionParser';
@@ -468,5 +471,148 @@ describe('getCurrentSectionBounds', () => {
 
     expect(result).not.toBeNull();
     expect(result!.startWordIndex).toBe(0);
+  });
+});
+
+describe('charIndexToLineIndex', () => {
+  it('returns 0 for character index at start of content', () => {
+    const content = 'First line\nSecond line';
+    expect(charIndexToLineIndex(0, content)).toBe(0);
+  });
+
+  it('returns 0 for character index within first line', () => {
+    const content = 'First line\nSecond line';
+    expect(charIndexToLineIndex(5, content)).toBe(0);
+  });
+
+  it('returns 1 for character index at start of second line', () => {
+    const content = 'First line\nSecond line';
+    // Character 11 is 'S' in 'Second'
+    expect(charIndexToLineIndex(11, content)).toBe(1);
+  });
+
+  it('returns correct line for multi-line content', () => {
+    const content = 'Line 0\nLine 1\nLine 2\nLine 3';
+    // 'Line 2' starts at char 14
+    expect(charIndexToLineIndex(14, content)).toBe(2);
+  });
+
+  it('handles content with blank lines', () => {
+    const content = 'Para one\n\nPara two';
+    // 'Para two' starts at char 10
+    expect(charIndexToLineIndex(10, content)).toBe(2);
+  });
+
+  it('returns -1 for character index beyond content', () => {
+    const content = 'Short';
+    expect(charIndexToLineIndex(100, content)).toBe(-1);
+  });
+});
+
+describe('jumpToNextParagraph', () => {
+  it('returns null for empty content', () => {
+    const state = createDocumentState('', []);
+    const result = jumpToNextParagraph('', state, 0);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when already at the last paragraph', () => {
+    const content = 'First para\n\nSecond para';
+    const state = createDocumentState(content, []);
+    // Position at word 2, which is in the second (last) paragraph
+    const result = jumpToNextParagraph(content, state, 2);
+    expect(result).toBeNull();
+  });
+
+  it('jumps from first paragraph to second paragraph', () => {
+    const content = 'First para text\n\nSecond para text';
+    const state = createDocumentState(content, []);
+    // Position at word 0 (in first paragraph)
+    const result = jumpToNextParagraph(content, state, 0);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('second');
+  });
+
+  it('jumps to next paragraph when in middle of current paragraph', () => {
+    const content = 'First para has many words\n\nSecond para text';
+    const state = createDocumentState(content, []);
+    // Position at word 3 (still in first paragraph)
+    const result = jumpToNextParagraph(content, state, 3);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('second');
+  });
+
+  it('handles multiple paragraphs', () => {
+    const content = 'First.\n\nSecond.\n\nThird.';
+    const state = createDocumentState(content, []);
+    // Position at word 0 (in first paragraph)
+    const result = jumpToNextParagraph(content, state, 0);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('second');
+
+    // Now jump from second to third
+    const result2 = jumpToNextParagraph(content, state, result!.globalWordIndex);
+    expect(result2).not.toBeNull();
+    expect(result2!.matchedText).toContain('third');
+  });
+
+  it('handles paragraphs with multiple lines', () => {
+    const content = 'Line one of para 1\nLine two of para 1\n\nLine one of para 2';
+    const state = createDocumentState(content, []);
+    // Position at word 0 (in first paragraph, first line)
+    const result = jumpToNextParagraph(content, state, 0);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('line one of para');
+  });
+});
+
+describe('jumpToPreviousParagraph', () => {
+  it('returns null for empty content', () => {
+    const state = createDocumentState('', []);
+    const result = jumpToPreviousParagraph('', state, 0);
+    expect(result).toBeNull();
+  });
+
+  it('returns null when already at the first paragraph', () => {
+    const content = 'First para\n\nSecond para';
+    const state = createDocumentState(content, []);
+    // Position at word 0 (in first paragraph)
+    const result = jumpToPreviousParagraph(content, state, 0);
+    expect(result).toBeNull();
+  });
+
+  it('jumps from second paragraph to first paragraph', () => {
+    const content = 'First para text\n\nSecond para text';
+    const state = createDocumentState(content, []);
+    // Position at word 3, which is in second paragraph (after first 3 words: first, para, text)
+    const result = jumpToPreviousParagraph(content, state, 3);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('first');
+    expect(result!.globalWordIndex).toBe(0);
+  });
+
+  it('handles multiple paragraphs', () => {
+    const content = 'First.\n\nSecond.\n\nThird.';
+    const state = createDocumentState(content, []);
+    // Position at word 2 (in third paragraph: "third")
+    const result = jumpToPreviousParagraph(content, state, 2);
+
+    expect(result).not.toBeNull();
+    expect(result!.matchedText).toContain('second');
+  });
+
+  it('handles paragraphs with multiple lines', () => {
+    const content = 'Line one of para 1\nLine two of para 1\n\nLine one of para 2';
+    const state = createDocumentState(content, []);
+    // Find position in second paragraph - state has 10 words from first para (line one of para 1 + line two of para 1)
+    const result = jumpToPreviousParagraph(content, state, 10);
+
+    expect(result).not.toBeNull();
+    expect(result!.globalWordIndex).toBe(0);
   });
 });

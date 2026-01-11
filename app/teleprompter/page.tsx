@@ -10,7 +10,13 @@ import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
 import { useTranscriptRecorder } from '@/app/hooks/useTranscriptRecorder';
-import { createDocumentState } from '@/app/lib/speechMatcher';
+import {
+  createDocumentState,
+  jumpToNextSection,
+  jumpToPreviousSection,
+  jumpToNextParagraph,
+  jumpToPreviousParagraph,
+} from '@/app/lib/speechMatcher';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
@@ -45,12 +51,14 @@ function TeleprompterContent() {
 
   const sectionAnchors = useMemo(() => parseSections(content), [content]);
 
-  // Get words count for state initialization
-  const wordsCount = useMemo(() => {
-    if (!content) return 0;
-    const docState = createDocumentState(content, sectionAnchors);
-    return docState.words.length;
+  // Create document state for navigation and word count
+  const documentState = useMemo(() => {
+    if (!content) return null;
+    return createDocumentState(content, sectionAnchors);
   }, [content, sectionAnchors]);
+
+  // Get words count for state initialization
+  const wordsCount = documentState?.words.length ?? 0;
 
   // Single source of truth for teleprompter state
   const {
@@ -376,22 +384,42 @@ function TeleprompterContent() {
     };
   }, [isListening, setWordIndex, lineIndex, start, stop]);
 
-  // Keyboard navigation (for manual mode)
-  const scrollUp = useCallback(() => {
-    setManualLineIndex(prev => {
-      const newIndex = Math.max(0, prev - 1);
-      scrollToLineSmooth(newIndex);
-      return newIndex;
-    });
-  }, [scrollToLineSmooth]);
+  // Keyboard navigation
+  const navigateToPreviousSection = useCallback(() => {
+    if (!documentState) return;
+    const result = jumpToPreviousSection(documentState, state.wordIndex);
+    if (result) {
+      setWordIndex(result.globalWordIndex);
+      scrollToWordFast(result.globalWordIndex);
+    }
+  }, [documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
 
-  const scrollDown = useCallback(() => {
-    setManualLineIndex(prev => {
-      const newIndex = prev + 1;
-      scrollToLineSmooth(newIndex);
-      return newIndex;
-    });
-  }, [scrollToLineSmooth]);
+  const navigateToNextSection = useCallback(() => {
+    if (!documentState) return;
+    const result = jumpToNextSection(documentState, state.wordIndex);
+    if (result) {
+      setWordIndex(result.globalWordIndex);
+      scrollToWordFast(result.globalWordIndex);
+    }
+  }, [documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+
+  const navigateToPreviousParagraph = useCallback(() => {
+    if (!documentState || !content) return;
+    const result = jumpToPreviousParagraph(content, documentState, state.wordIndex);
+    if (result) {
+      setWordIndex(result.globalWordIndex);
+      scrollToWordFast(result.globalWordIndex);
+    }
+  }, [content, documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
+
+  const navigateToNextParagraph = useCallback(() => {
+    if (!documentState || !content) return;
+    const result = jumpToNextParagraph(content, documentState, state.wordIndex);
+    if (result) {
+      setWordIndex(result.globalWordIndex);
+      scrollToWordFast(result.globalWordIndex);
+    }
+  }, [content, documentState, state.wordIndex, setWordIndex, scrollToWordFast]);
 
   const pageUp = useCallback(() => {
     setManualLineIndex(prev => {
@@ -418,8 +446,10 @@ function TeleprompterContent() {
   }, [isListening, start, stop]);
 
   useKeyboardControls({
-    onScrollUp: scrollUp,
-    onScrollDown: scrollDown,
+    onPreviousSection: navigateToPreviousSection,
+    onNextSection: navigateToNextSection,
+    onPreviousParagraph: navigateToPreviousParagraph,
+    onNextParagraph: navigateToNextParagraph,
     onPageUp: pageUp,
     onPageDown: pageDown,
     onTogglePause: togglePause,

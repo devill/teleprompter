@@ -1,5 +1,6 @@
 import { tokenize, normalizeNumber } from './textNormalizer';
 import type { SectionAnchor } from './sectionParser';
+import { parseParagraphs } from './paragraphParser';
 
 export interface MatchResult {
   lineIndex: number;
@@ -645,5 +646,171 @@ export function getCurrentSectionBounds(
   return {
     startWordIndex: startWord.globalIndex,
     endWordIndex,
+  };
+}
+
+// Map a character index in raw content to a line number (0-based)
+export function charIndexToLineIndex(charIndex: number, content: string): number {
+  if (charIndex >= content.length) {
+    return -1;
+  }
+
+  let lineIndex = 0;
+  for (let i = 0; i < charIndex; i++) {
+    if (content[i] === '\n') {
+      lineIndex++;
+    }
+  }
+  return lineIndex;
+}
+
+// Map a raw line index (including blank lines) to DocumentState line index (excluding blank lines)
+function rawLineToDocLineIndex(rawLineIndex: number, content: string): number {
+  const lines = content.split('\n');
+  let docLineIndex = 0;
+
+  for (let i = 0; i < rawLineIndex && i < lines.length; i++) {
+    if (lines[i].trim()) {
+      docLineIndex++;
+    }
+  }
+  return docLineIndex;
+}
+
+// Get paragraph anchors with their document line indices
+function getParagraphsWithLineIndices(
+  content: string
+): Array<{ startCharIndex: number; docLineIndex: number }> {
+  const paragraphs = parseParagraphs(content);
+  if (paragraphs.length === 0) {
+    return [];
+  }
+
+  const result: Array<{ startCharIndex: number; docLineIndex: number }> = [];
+  for (const para of paragraphs) {
+    const rawLineIndex = charIndexToLineIndex(para.startCharIndex, content);
+    const docLineIndex = rawLineToDocLineIndex(rawLineIndex, content);
+    result.push({ startCharIndex: para.startCharIndex, docLineIndex });
+  }
+
+  return result;
+}
+
+// Jump to the next paragraph
+export function jumpToNextParagraph(
+  content: string,
+  state: DocumentState,
+  currentWordIndex: number
+): JumpSearchResult | null {
+  if (state.words.length === 0) {
+    return null;
+  }
+
+  const paragraphsWithLines = getParagraphsWithLineIndices(content);
+  if (paragraphsWithLines.length === 0) {
+    return null;
+  }
+
+  const currentWord = state.words[currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentDocLineIndex = currentWord.lineIndex;
+
+  // Find the current paragraph (the one whose docLineIndex <= current position)
+  let currentParagraphIndex = -1;
+  for (let i = 0; i < paragraphsWithLines.length; i++) {
+    if (paragraphsWithLines[i].docLineIndex <= currentDocLineIndex) {
+      currentParagraphIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  // Find the next paragraph
+  const nextParagraphIndex = currentParagraphIndex + 1;
+  if (nextParagraphIndex >= paragraphsWithLines.length) {
+    return null;
+  }
+
+  const nextParagraph = paragraphsWithLines[nextParagraphIndex];
+
+  // Find the first word of the next paragraph's line
+  const targetWord = state.words.find(w => w.lineIndex === nextParagraph.docLineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the target line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === nextParagraph.docLineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: nextParagraph.docLineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
+  };
+}
+
+// Jump to the previous paragraph
+export function jumpToPreviousParagraph(
+  content: string,
+  state: DocumentState,
+  currentWordIndex: number
+): JumpSearchResult | null {
+  if (state.words.length === 0) {
+    return null;
+  }
+
+  const paragraphsWithLines = getParagraphsWithLineIndices(content);
+  if (paragraphsWithLines.length === 0) {
+    return null;
+  }
+
+  const currentWord = state.words[currentWordIndex];
+  if (!currentWord) {
+    return null;
+  }
+
+  const currentDocLineIndex = currentWord.lineIndex;
+
+  // Find the current paragraph (the one whose docLineIndex <= current position)
+  let currentParagraphIndex = -1;
+  for (let i = 0; i < paragraphsWithLines.length; i++) {
+    if (paragraphsWithLines[i].docLineIndex <= currentDocLineIndex) {
+      currentParagraphIndex = i;
+    } else {
+      break;
+    }
+  }
+
+  // Can't go back from first paragraph
+  if (currentParagraphIndex < 1) {
+    return null;
+  }
+
+  const previousParagraph = paragraphsWithLines[currentParagraphIndex - 1];
+
+  // Find the first word of the previous paragraph's line
+  const targetWord = state.words.find(w => w.lineIndex === previousParagraph.docLineIndex);
+  if (!targetWord) {
+    return null;
+  }
+
+  // Build matched text from the first few words of the target line
+  const lineWords = state.words
+    .filter(w => w.lineIndex === previousParagraph.docLineIndex)
+    .slice(0, 5)
+    .map(w => w.word);
+
+  return {
+    lineIndex: previousParagraph.docLineIndex,
+    globalWordIndex: targetWord.globalIndex,
+    score: 100,
+    matchedText: lineWords.join(' '),
   };
 }

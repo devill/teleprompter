@@ -3,8 +3,10 @@
 import { useEffect } from 'react';
 
 export interface KeyboardActions {
-  onScrollUp?: () => void;
-  onScrollDown?: () => void;
+  onPreviousSection?: () => void;
+  onNextSection?: () => void;
+  onPreviousParagraph?: () => void;
+  onNextParagraph?: () => void;
   onPageUp?: () => void;
   onPageDown?: () => void;
   onTogglePause?: () => void;
@@ -17,11 +19,19 @@ export function useKeyboardControls(actions: KeyboardActions) {
       switch (e.key) {
         case 'ArrowUp':
           e.preventDefault();
-          actions.onScrollUp?.();
+          actions.onPreviousSection?.();
           break;
         case 'ArrowDown':
           e.preventDefault();
-          actions.onScrollDown?.();
+          actions.onNextSection?.();
+          break;
+        case 'ArrowLeft':
+          e.preventDefault();
+          actions.onPreviousParagraph?.();
+          break;
+        case 'ArrowRight':
+          e.preventDefault();
+          actions.onNextParagraph?.();
           break;
         case 'PageUp':
           e.preventDefault();
