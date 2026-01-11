@@ -15,8 +15,7 @@ export interface DocumentWord {
   globalIndex: number;
 }
 
-export interface MatcherState {
-  currentWordIndex: number;  // Current position in document (global word index)
+export interface DocumentState {
   words: DocumentWord[];     // Flattened word list
   lineCount: number;
   sectionAnchors: SectionAnchor[];
@@ -39,10 +38,10 @@ const HEADER_BONUS = 50;
 const NUMBERED_SECTION_BONUS = 30;
 const MAX_DISTANCE_PENALTY = 20;
 
-export function createMatcherState(
+export function createDocumentState(
   content: string,
   sectionAnchors: SectionAnchor[]
-): MatcherState {
+): DocumentState {
   const lines = content.split('\n').filter(line => line.trim());
   const words: DocumentWord[] = [];
 
@@ -61,7 +60,6 @@ export function createMatcherState(
   }
 
   return {
-    currentWordIndex: 0,
     words,
     lineCount: lines.length,
     sectionAnchors,
@@ -71,22 +69,22 @@ export function createMatcherState(
 // Process a single newly spoken word and return updated position
 export function processSpokenWord(
   spokenWord: string,
-  state: MatcherState
-): { result: MatchResult | null; newState: MatcherState } {
+  state: DocumentState,
+  currentWordIndex: number
+): { result: MatchResult | null; newWordIndex: number } {
   const normalized = tokenize(spokenWord)[0] || spokenWord.toLowerCase();
 
   if (!normalized) {
-    return { result: null, newState: state };
+    return { result: null, newWordIndex: currentWordIndex };
   }
 
   // Look ahead from current position for a match
-  const startIdx = state.currentWordIndex;
+  const startIdx = currentWordIndex;
   const endIdx = Math.min(state.words.length, startIdx + LOOK_AHEAD_WORDS);
 
   for (let i = startIdx; i < endIdx; i++) {
     if (wordsMatch(normalized, state.words[i].word)) {
       const matchedWord = state.words[i];
-      const newWordIndex = i + 1;
 
       return {
         result: {
@@ -95,21 +93,19 @@ export function processSpokenWord(
           globalWordIndex: i,
           matchType: 'advance',
         },
-        newState: {
-          ...state,
-          currentWordIndex: newWordIndex,
-        },
+        newWordIndex: i + 1,
       };
     }
   }
 
-  return { result: null, newState: state };
+  return { result: null, newWordIndex: currentWordIndex };
 }
 
 // Search document for jump targets matching spoken text
 export function searchForJumpTarget(
   targetWords: string[],
-  state: MatcherState
+  state: DocumentState,
+  currentWordIndex: number
 ): JumpSearchResult | null {
   if (targetWords.length === 0 || state.words.length === 0) {
     return null;
@@ -140,7 +136,7 @@ export function searchForJumpTarget(
     if (matchScore > 0) {
       // Calculate bonuses
       let totalScore = matchScore;
-      let matchedText = lineWords.slice(0, 6).join(' ');
+      const matchedText = lineWords.slice(0, 6).join(' ');
 
       // Header bonus
       const isHeader = state.sectionAnchors.some(
@@ -159,7 +155,7 @@ export function searchForJumpTarget(
       }
 
       // Distance penalty (further away = lower score)
-      const distance = Math.abs(firstWordIndex - state.currentWordIndex);
+      const distance = Math.abs(firstWordIndex - currentWordIndex);
       const maxDistance = state.words.length;
       const distancePenalty = (distance / maxDistance) * MAX_DISTANCE_PENALTY;
       totalScore -= distancePenalty;
@@ -178,11 +174,10 @@ export function searchForJumpTarget(
   return bestMatch;
 }
 
-// Apply a jump result to the state
+// Apply a jump result and return the match result with new position
 export function applyJump(
-  jumpResult: JumpSearchResult,
-  state: MatcherState
-): { result: MatchResult; newState: MatcherState } {
+  jumpResult: JumpSearchResult
+): { result: MatchResult; newWordIndex: number } {
   return {
     result: {
       lineIndex: jumpResult.lineIndex,
@@ -190,23 +185,21 @@ export function applyJump(
       globalWordIndex: jumpResult.globalWordIndex,
       matchType: 'jump',
     },
-    newState: {
-      ...state,
-      currentWordIndex: jumpResult.globalWordIndex,
-    },
+    newWordIndex: jumpResult.globalWordIndex,
   };
 }
 
 // Jump back by a number of blocks (non-empty lines)
 export function jumpBackBlocks(
   blockCount: number,
-  state: MatcherState
+  state: DocumentState,
+  currentWordIndex: number
 ): JumpSearchResult | null {
   if (state.words.length === 0 || blockCount <= 0) {
     return null;
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }
@@ -244,13 +237,14 @@ export function jumpBackBlocks(
 // Jump forward by a number of blocks (non-empty lines)
 export function jumpForwardBlocks(
   blockCount: number,
-  state: MatcherState
+  state: DocumentState,
+  currentWordIndex: number
 ): JumpSearchResult | null {
   if (state.words.length === 0 || blockCount <= 0) {
     return null;
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }
@@ -403,7 +397,7 @@ function levenshteinDistance(a: string, b: string): number {
 }
 
 // Build line groups from state words for anchor matching
-function buildLineGroups(state: MatcherState): Map<number, { words: string[]; firstWordIndex: number }> {
+function buildLineGroups(state: DocumentState): Map<number, { words: string[]; firstWordIndex: number }> {
   const lineGroups = new Map<number, { words: string[]; firstWordIndex: number }>();
   for (const word of state.words) {
     if (!lineGroups.has(word.lineIndex)) {
@@ -416,7 +410,7 @@ function buildLineGroups(state: MatcherState): Map<number, { words: string[]; fi
 
 // Get heading anchors with their line indices sorted by line index
 function getHeadingsWithLineIndices(
-  state: MatcherState
+  state: DocumentState
 ): Array<{ anchor: SectionAnchor; lineIndex: number }> {
   const headings = state.sectionAnchors.filter(a => a.type === 'heading');
   if (headings.length === 0) {
@@ -436,13 +430,16 @@ function getHeadingsWithLineIndices(
 }
 
 // Jump to the start of the current section (its heading)
-export function jumpToSectionStart(state: MatcherState): JumpSearchResult | null {
+export function jumpToSectionStart(
+  state: DocumentState,
+  currentWordIndex: number
+): JumpSearchResult | null {
   const headingsWithLines = getHeadingsWithLineIndices(state);
   if (headingsWithLines.length === 0) {
     return null;
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }
@@ -485,13 +482,16 @@ export function jumpToSectionStart(state: MatcherState): JumpSearchResult | null
 }
 
 // Jump to the previous section heading
-export function jumpToPreviousSection(state: MatcherState): JumpSearchResult | null {
+export function jumpToPreviousSection(
+  state: DocumentState,
+  currentWordIndex: number
+): JumpSearchResult | null {
   const headingsWithLines = getHeadingsWithLineIndices(state);
   if (headingsWithLines.length === 0) {
     return null;
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }
@@ -536,13 +536,16 @@ export function jumpToPreviousSection(state: MatcherState): JumpSearchResult | n
 }
 
 // Jump to the next section heading
-export function jumpToNextSection(state: MatcherState): JumpSearchResult | null {
+export function jumpToNextSection(
+  state: DocumentState,
+  currentWordIndex: number
+): JumpSearchResult | null {
   const headingsWithLines = getHeadingsWithLineIndices(state);
   if (headingsWithLines.length === 0) {
     return null;
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }
@@ -576,7 +579,10 @@ export function jumpToNextSection(state: MatcherState): JumpSearchResult | null 
 }
 
 // Get the boundaries of the current section for loop mode
-export function getCurrentSectionBounds(state: MatcherState): SectionBounds | null {
+export function getCurrentSectionBounds(
+  state: DocumentState,
+  currentWordIndex: number
+): SectionBounds | null {
   const headingsWithLines = getHeadingsWithLineIndices(state);
 
   // If no headings, treat entire document as one section
@@ -590,7 +596,7 @@ export function getCurrentSectionBounds(state: MatcherState): SectionBounds | nu
     };
   }
 
-  const currentWord = state.words[state.currentWordIndex];
+  const currentWord = state.words[currentWordIndex];
   if (!currentWord) {
     return null;
   }

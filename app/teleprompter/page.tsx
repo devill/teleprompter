@@ -4,11 +4,13 @@ import { useSearchParams } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseSections } from '@/app/lib/sectionParser';
 import { useTeleprompterSettings } from '@/app/hooks/useTeleprompterSettings';
+import { useTeleprompterState } from '@/app/hooks/useTeleprompterState';
 import { useFullscreen } from '@/app/hooks/useFullscreen';
 import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
 import { useTranscriptRecorder } from '@/app/hooks/useTranscriptRecorder';
+import { createDocumentState } from '@/app/lib/speechMatcher';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
@@ -21,8 +23,6 @@ function TeleprompterContent() {
   const [content, setContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [manualLineIndex, setManualLineIndex] = useState(0);
-  const [isRecordMode, setIsRecordMode] = useState(false);
-  const [isLoopMode, setIsLoopMode] = useState(false);
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
@@ -44,6 +44,21 @@ function TeleprompterContent() {
   } = useSpeechRecognition();
 
   const sectionAnchors = useMemo(() => parseSections(content), [content]);
+
+  // Get words count for state initialization
+  const wordsCount = useMemo(() => {
+    if (!content) return 0;
+    const docState = createDocumentState(content, sectionAnchors);
+    return docState.words.length;
+  }, [content, sectionAnchors]);
+
+  // Single source of truth for teleprompter state
+  const {
+    state,
+    setWordIndex,
+    setIsRecordMode,
+    setIsLoopMode,
+  } = useTeleprompterState(wordsCount);
 
   // Ref to hold recorder functions (avoids circular dependency between hooks)
   const recorderRef = useRef<{ recordWord: (i: number) => void; recordCommand: (t: string) => void } | null>(null);
@@ -87,17 +102,17 @@ function TeleprompterContent() {
 
   const {
     processTranscript,
-    currentWordIndex,
-    currentLineIndex,
+    lineIndex,
     jumpModeStatus,
     jumpTargetText,
-    setPosition,
     words,
   } = useTextMatcher({
     content,
     sectionAnchors,
     isListening,
-    isLoopMode,
+    isLoopMode: state.isLoopMode,
+    wordIndex: state.wordIndex,
+    onWordIndexChange: setWordIndex,
     onMatch: (result) => {
       scrollToWordFast(result.globalWordIndex);
       recorderRef.current?.recordWord(result.globalWordIndex);
@@ -112,11 +127,13 @@ function TeleprompterContent() {
   const recorder = useTranscriptRecorder({
     filePath,
     words,
-    isRecording: isRecordMode && isListening,
+    isRecording: state.isRecordMode && isListening,
   });
 
   // Update ref so callbacks use latest recorder
-  recorderRef.current = recorder;
+  useEffect(() => {
+    recorderRef.current = recorder;
+  }, [recorder]);
 
   // Continuous smooth scroll with velocity-based ease in/out
   const scrollVelocityRef = useRef(0);
@@ -134,7 +151,7 @@ function TeleprompterContent() {
       const deltaTime = Math.min((currentTime - lastTime) / 1000, 0.1); // Cap at 100ms
       lastTime = currentTime;
 
-      const wordElement = container.querySelector(`[data-word-index="${currentWordIndex}"]`) as HTMLElement | null;
+      const wordElement = container.querySelector(`[data-word-index="${state.wordIndex}"]`) as HTMLElement | null;
       if (!wordElement) {
         animationFrameId = requestAnimationFrame(smoothScroll);
         return;
@@ -199,10 +216,10 @@ function TeleprompterContent() {
       cancelAnimationFrame(animationFrameId);
       scrollVelocityRef.current = 0; // Reset velocity when stopping
     };
-  }, [isListening, currentWordIndex]);
+  }, [isListening, state.wordIndex]);
 
   // Use speech line index when listening, manual when not
-  const activeLineIndex = isListening ? currentLineIndex : manualLineIndex;
+  const activeLineIndex = isListening ? lineIndex : manualLineIndex;
 
   // Process transcript when it changes (both final and interim for responsiveness)
   useEffect(() => {
@@ -214,9 +231,9 @@ function TeleprompterContent() {
   }, [transcript, interimTranscript, processTranscript, isListening]);
 
   // Smooth scroll to line for manual mode (position at 1/3 viewport)
-  const scrollToLineSmooth = useCallback((lineIndex: number) => {
+  const scrollToLineSmooth = useCallback((lineIdx: number) => {
     const container = viewerRef.current;
-    const lineElement = container?.querySelector(`[data-line-index="${lineIndex}"]`) as HTMLElement | null;
+    const lineElement = container?.querySelector(`[data-line-index="${lineIdx}"]`) as HTMLElement | null;
     if (!container || !lineElement) return;
 
     const viewportHeight = container.clientHeight;
@@ -292,8 +309,8 @@ function TeleprompterContent() {
         const distance = Math.abs(elementY - targetY);
 
         if (!closestWord || distance < closestWord.distance) {
-          const wordIndex = parseInt(el.getAttribute('data-word-index') || '0', 10);
-          closestWord = { index: wordIndex, distance };
+          const wordIdx = parseInt(el.getAttribute('data-word-index') || '0', 10);
+          closestWord = { index: wordIdx, distance };
         }
       }
 
@@ -311,10 +328,10 @@ function TeleprompterContent() {
       }
 
       // Find word at 1/3 viewport position and update read head
-      const wordIndex = findWordAtViewportPosition();
-      if (wordIndex !== null) {
-        setPosition(wordIndex);
-        setManualLineIndex(currentLineIndex); // sync manual line index
+      const foundWordIndex = findWordAtViewportPosition();
+      if (foundWordIndex !== null) {
+        setWordIndex(foundWordIndex);
+        setManualLineIndex(lineIndex); // sync manual line index
       }
 
       // If was listening, stop and auto-resume after delay
@@ -357,7 +374,7 @@ function TeleprompterContent() {
         clearTimeout(scrollDebounceRef.current);
       }
     };
-  }, [isListening, setPosition, currentLineIndex, start, stop]);
+  }, [isListening, setWordIndex, lineIndex, start, stop]);
 
   // Keyboard navigation (for manual mode)
   const scrollUp = useCallback(() => {
@@ -452,14 +469,14 @@ function TeleprompterContent() {
         fontSize={settings.fontSize}
         marginPercentage={settings.marginPercentage}
         currentLineIndex={activeLineIndex}
-        currentWordIndex={isListening ? currentWordIndex : undefined}
+        currentWordIndex={isListening ? state.wordIndex : undefined}
       />
 
       <TeleprompterControls
         settings={settings}
         onSettingsChange={updateSettings}
         isListening={isListening}
-        isRecordMode={isRecordMode}
+        isRecordMode={state.isRecordMode}
         onPracticeToggle={() => {
           if (isListening) {
             stop();
@@ -476,8 +493,8 @@ function TeleprompterContent() {
             start();
           }
         }}
-        isLoopMode={isLoopMode}
-        onLoopModeToggle={() => setIsLoopMode(prev => !prev)}
+        isLoopMode={state.isLoopMode}
+        onLoopModeToggle={() => setIsLoopMode(!state.isLoopMode)}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         speechSupported={isSupported}

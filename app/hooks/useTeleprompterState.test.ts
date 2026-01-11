@@ -1,0 +1,217 @@
+import { describe, it, expect } from 'vitest';
+import { renderHook, act } from '@testing-library/react';
+import { useTeleprompterState } from './useTeleprompterState';
+
+describe('useTeleprompterState', () => {
+  describe('initial state', () => {
+    it('starts with wordIndex at 0', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      expect(result.current.state.wordIndex).toBe(0);
+    });
+
+    it('starts with isRecordMode false', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      expect(result.current.state.isRecordMode).toBe(false);
+    });
+
+    it('starts with isLoopMode false', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      expect(result.current.state.isLoopMode).toBe(false);
+    });
+  });
+
+  describe('setWordIndex', () => {
+    it('updates wordIndex', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setWordIndex(50);
+      });
+
+      expect(result.current.state.wordIndex).toBe(50);
+    });
+
+    it('clamps wordIndex to max valid index', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setWordIndex(150);
+      });
+
+      expect(result.current.state.wordIndex).toBe(99);
+    });
+
+    it('clamps negative wordIndex to 0', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setWordIndex(-10);
+      });
+
+      expect(result.current.state.wordIndex).toBe(0);
+    });
+
+    it('handles wordsCount of 0', () => {
+      const { result } = renderHook(() => useTeleprompterState(0));
+
+      act(() => {
+        result.current.setWordIndex(10);
+      });
+
+      expect(result.current.state.wordIndex).toBe(0);
+    });
+  });
+
+  describe('setIsRecordMode', () => {
+    it('updates isRecordMode to true', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setIsRecordMode(true);
+      });
+
+      expect(result.current.state.isRecordMode).toBe(true);
+    });
+
+    it('updates isRecordMode to false', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setIsRecordMode(true);
+      });
+      act(() => {
+        result.current.setIsRecordMode(false);
+      });
+
+      expect(result.current.state.isRecordMode).toBe(false);
+    });
+  });
+
+  describe('setIsLoopMode', () => {
+    it('updates isLoopMode to true', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setIsLoopMode(true);
+      });
+
+      expect(result.current.state.isLoopMode).toBe(true);
+    });
+
+    it('updates isLoopMode to false', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setIsLoopMode(true);
+      });
+      act(() => {
+        result.current.setIsLoopMode(false);
+      });
+
+      expect(result.current.state.isLoopMode).toBe(false);
+    });
+  });
+
+  describe('reset', () => {
+    it('resets all state to initial values', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+
+      act(() => {
+        result.current.setWordIndex(50);
+        result.current.setIsRecordMode(true);
+        result.current.setIsLoopMode(true);
+      });
+
+      act(() => {
+        result.current.reset();
+      });
+
+      expect(result.current.state.wordIndex).toBe(0);
+      expect(result.current.state.isRecordMode).toBe(false);
+      expect(result.current.state.isLoopMode).toBe(false);
+    });
+  });
+
+  describe('wordsCount changes', () => {
+    it('clamps wordIndex when wordsCount decreases', () => {
+      const { result, rerender } = renderHook(
+        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        { initialProps: { wordsCount: 100 } }
+      );
+
+      act(() => {
+        result.current.setWordIndex(80);
+      });
+      expect(result.current.state.wordIndex).toBe(80);
+
+      rerender({ wordsCount: 50 });
+
+      expect(result.current.state.wordIndex).toBe(49);
+    });
+
+    it('preserves wordIndex when wordsCount increases', () => {
+      const { result, rerender } = renderHook(
+        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        { initialProps: { wordsCount: 50 } }
+      );
+
+      act(() => {
+        result.current.setWordIndex(30);
+      });
+
+      rerender({ wordsCount: 100 });
+
+      expect(result.current.state.wordIndex).toBe(30);
+    });
+
+    it('preserves wordIndex when it is still valid', () => {
+      const { result, rerender } = renderHook(
+        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        { initialProps: { wordsCount: 100 } }
+      );
+
+      act(() => {
+        result.current.setWordIndex(30);
+      });
+
+      rerender({ wordsCount: 50 });
+
+      expect(result.current.state.wordIndex).toBe(30);
+    });
+  });
+
+  describe('state object identity', () => {
+    it('returns same state object when nothing changes', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      const firstState = result.current.state;
+
+      act(() => {
+        result.current.setWordIndex(0);
+      });
+
+      expect(result.current.state).toBe(firstState);
+    });
+
+    it('returns same state when setting same isRecordMode value', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      const firstState = result.current.state;
+
+      act(() => {
+        result.current.setIsRecordMode(false);
+      });
+
+      expect(result.current.state).toBe(firstState);
+    });
+
+    it('returns same state when setting same isLoopMode value', () => {
+      const { result } = renderHook(() => useTeleprompterState(100));
+      const firstState = result.current.state;
+
+      act(() => {
+        result.current.setIsLoopMode(false);
+      });
+
+      expect(result.current.state).toBe(firstState);
+    });
+  });
+});
