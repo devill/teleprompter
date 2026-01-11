@@ -35,6 +35,7 @@ function TeleprompterContent() {
   const {
     isSupported,
     isListening,
+    isReconnecting,
     transcript,
     interimTranscript,
     start,
@@ -484,6 +485,7 @@ function TeleprompterContent() {
 
       <SpeechIndicator
         isListening={isListening}
+        isReconnecting={isReconnecting}
         interimTranscript={interimTranscript}
         error={speechError}
         jumpModeStatus={jumpModeStatus}

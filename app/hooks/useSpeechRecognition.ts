@@ -35,6 +35,7 @@ interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  onstart: (() => void) | null;
   onresult: ((event: SpeechRecognitionEvent) => void) | null;
   onerror: ((event: SpeechRecognitionErrorEvent) => void) | null;
   onend: (() => void) | null;
@@ -57,6 +58,7 @@ declare global {
 export interface UseSpeechRecognitionReturn {
   isSupported: boolean;        // Browser supports Speech API
   isListening: boolean;        // Currently listening
+  isReconnecting: boolean;     // Attempting to reconnect after network error
   transcript: string;          // Final recognized text
   interimTranscript: string;   // In-progress text
   start: () => void;
@@ -64,10 +66,15 @@ export interface UseSpeechRecognitionReturn {
   error: string | null;
 }
 
+const MAX_RETRIES = 4;
+const BASE_RETRY_DELAY_MS = 500;
+const MAX_RETRY_DELAY_MS = 4000;
+
 export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   // Initialize to false for SSR, update after hydration to avoid mismatch
   const [isSupported, setIsSupported] = useState(false);
   const [isListening, setIsListening] = useState(false);
+  const [isReconnecting, setIsReconnecting] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +82,8 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   // Track intended state to ignore stale onend events
   const wantToListenRef = useRef(false);
+  const retryCountRef = useRef(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Check browser support after hydration
   useEffect(() => {
@@ -89,6 +98,37 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     recognition.continuous = true;
     recognition.interimResults = true;
     recognition.lang = 'en-US';
+
+    const scheduleRetry = () => {
+      if (retryCountRef.current >= MAX_RETRIES) {
+        setError('network');
+        setIsReconnecting(false);
+        setIsListening(false);
+        wantToListenRef.current = false;
+        return;
+      }
+
+      const delay = Math.min(
+        BASE_RETRY_DELAY_MS * Math.pow(2, retryCountRef.current),
+        MAX_RETRY_DELAY_MS
+      );
+      retryCountRef.current += 1;
+
+      retryTimeoutRef.current = setTimeout(() => {
+        if (wantToListenRef.current && recognitionRef.current) {
+          try {
+            recognitionRef.current.start();
+          } catch {
+            scheduleRetry();
+          }
+        }
+      }, delay);
+    };
+
+    recognition.onstart = () => {
+      retryCountRef.current = 0;
+      setIsReconnecting(false);
+    };
 
     recognition.onresult = (event) => {
       let interim = '';
@@ -110,9 +150,14 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     };
 
     recognition.onerror = (event) => {
-      wantToListenRef.current = false;
-      setError(event.error);
-      setIsListening(false);
+      if (event.error === 'network' && wantToListenRef.current) {
+        setIsReconnecting(true);
+        scheduleRetry();
+      } else {
+        wantToListenRef.current = false;
+        setError(event.error);
+        setIsListening(false);
+      }
     };
 
     recognition.onend = () => {
@@ -138,6 +183,9 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
     recognitionRef.current = recognition;
 
     return () => {
+      if (retryTimeoutRef.current) {
+        clearTimeout(retryTimeoutRef.current);
+      }
       recognition.stop();
     };
   }, []);
@@ -168,6 +216,7 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   return {
     isSupported,
     isListening,
+    isReconnecting,
     transcript,
     interimTranscript,
     start,

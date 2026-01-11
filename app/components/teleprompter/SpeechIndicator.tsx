@@ -5,6 +5,7 @@ import styles from './SpeechIndicator.module.css';
 
 interface SpeechIndicatorProps {
   isListening: boolean;
+  isReconnecting?: boolean;
   interimTranscript: string;
   confidence?: number;
   error?: string | null;
@@ -14,6 +15,7 @@ interface SpeechIndicatorProps {
 
 export default function SpeechIndicator({
   isListening,
+  isReconnecting = false,
   interimTranscript,
   confidence,
   error,
@@ -22,7 +24,7 @@ export default function SpeechIndicator({
 }: SpeechIndicatorProps) {
   const showJumpMode = jumpModeStatus !== 'inactive';
 
-  if (!isListening && !error && !showJumpMode) return null;
+  if (!isListening && !isReconnecting && !error && !showJumpMode) return null;
 
   return (
     <div className={styles.container}>
@@ -36,6 +38,13 @@ export default function SpeechIndicator({
               <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
             </svg>
           </div>
+
+          {isReconnecting && (
+            <div className={styles.reconnecting}>
+              <div className={styles.spinner} />
+              <span>Reconnecting...</span>
+            </div>
+          )}
 
           {interimTranscript && (
             <div className={styles.transcript}>
