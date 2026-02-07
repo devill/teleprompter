@@ -121,4 +121,5 @@ Content of section one.`;
       expect(htmlToMarkdown(html)).toBe('Content');
     });
   });
+
 });

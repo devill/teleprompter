@@ -99,8 +99,8 @@ export default function TeleprompterControls({
           <span className={styles.value}>{settings.marginPercentage}%</span>
         </div>
 
-        {/* Paste (static mode only) */}
-        {isStaticMode && onPaste && (
+        {/* Paste */}
+        {onPaste && (
           <button
             className={styles.button}
             onClick={onPaste}

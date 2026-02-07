@@ -1,6 +1,6 @@
 'use client';
 
-import { useSearchParams } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { parseSections } from '@/app/lib/sectionParser';
 import { useTeleprompterSettings } from '@/app/hooks/useTeleprompterSettings';
@@ -28,6 +28,7 @@ import styles from './page.module.css';
 function TeleprompterContent() {
   const searchParams = useSearchParams();
   const filePath = searchParams.get('path');
+  const router = useRouter();
 
   const { content, isLoading: contentLoading, error: contentError, setContent: setSourceContent, isStaticMode } = useContentSource(filePath);
 
@@ -524,6 +525,10 @@ function TeleprompterContent() {
 
       if (content.trim()) {
         setSourceContent(content);
+        // Clear path when pasting new content (switches to static mode)
+        if (filePath) {
+          router.replace('/teleprompter');
+        }
       }
     } catch (err) {
       // Fall back to readText if read() fails (e.g., permissions)
@@ -531,12 +536,16 @@ function TeleprompterContent() {
         const text = await navigator.clipboard.readText();
         if (text.trim()) {
           setSourceContent(text);
+          // Clear path when pasting new content (switches to static mode)
+          if (filePath) {
+            router.replace('/teleprompter');
+          }
         }
       } catch {
         console.error('Failed to read clipboard:', err);
       }
     }
-  }, [isListening, setSourceContent]);
+  }, [isListening, setSourceContent, filePath, router]);
 
   useKeyboardControls({
     onPreviousSection: navigateToPreviousSection,
@@ -549,7 +558,7 @@ function TeleprompterContent() {
     onEscape: () => {
       if (isFullscreen) toggleFullscreen();
     },
-    onPaste: isStaticMode && !isListening ? handlePaste : undefined,
+    onPaste: !isListening ? handlePaste : undefined,
   });
 
   // Apply teleprompter theme
@@ -560,11 +569,6 @@ function TeleprompterContent() {
     };
   }, []);
 
-  // In local mode, require file path
-  if (!isStaticMode && !filePath) {
-    return <div className={styles.error}>No file path specified</div>;
-  }
-
   if (contentError) {
     return <div className={styles.error}>{contentError}</div>;
   }
@@ -573,8 +577,8 @@ function TeleprompterContent() {
     return <div className={styles.loading}>Loading...</div>;
   }
 
-  // In static mode with no content, show paste prompt
-  if (isStaticMode && !content) {
+  // Show paste prompt when no content source (static mode or local mode without file)
+  if (!content && (isStaticMode || !filePath)) {
     return (
       <div className={styles.loading}>
         Paste your script (Cmd/Ctrl+V) or click the 📋 button
