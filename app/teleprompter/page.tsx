@@ -19,6 +19,7 @@ import {
   jumpToPreviousParagraph,
   getCurrentSectionBounds,
 } from '@/app/lib/speechMatcher';
+import { htmlToMarkdown } from '@/app/lib/htmlToMarkdown';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
@@ -502,12 +503,38 @@ function TeleprompterContent() {
   const handlePaste = useCallback(async () => {
     if (isListening) return; // Don't paste while listening
     try {
-      const text = await navigator.clipboard.readText();
-      if (text.trim()) {
-        setSourceContent(text);
+      // Try to read HTML first (for rich text from Word/Docs)
+      const clipboardItems = await navigator.clipboard.read();
+      let content = '';
+
+      for (const item of clipboardItems) {
+        // Prefer HTML to preserve heading structure
+        if (item.types.includes('text/html')) {
+          const blob = await item.getType('text/html');
+          const html = await blob.text();
+          content = htmlToMarkdown(html);
+          break;
+        }
+        // Fall back to plain text
+        if (item.types.includes('text/plain')) {
+          const blob = await item.getType('text/plain');
+          content = await blob.text();
+        }
+      }
+
+      if (content.trim()) {
+        setSourceContent(content);
       }
     } catch (err) {
-      console.error('Failed to read clipboard:', err);
+      // Fall back to readText if read() fails (e.g., permissions)
+      try {
+        const text = await navigator.clipboard.readText();
+        if (text.trim()) {
+          setSourceContent(text);
+        }
+      } catch {
+        console.error('Failed to read clipboard:', err);
+      }
     }
   }, [isListening, setSourceContent]);
 
