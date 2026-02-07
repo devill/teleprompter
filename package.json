@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --port 7313",
     "build": "next build",
+    "build:static": "rm -rf .next && mv app/api /tmp/teleprompter-api-backup && STATIC_EXPORT=true next build; mv /tmp/teleprompter-api-backup app/api",
     "start": "next start --port 7313",
     "lint": "eslint",
     "test": "vitest run",

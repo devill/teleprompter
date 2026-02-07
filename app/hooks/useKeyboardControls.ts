@@ -11,6 +11,7 @@ export interface KeyboardActions {
   onPageDown?: () => void;
   onTogglePause?: () => void;
   onEscape?: () => void;
+  onPaste?: () => void;
 }
 
 export function useKeyboardControls(actions: KeyboardActions) {
@@ -47,6 +48,12 @@ export function useKeyboardControls(actions: KeyboardActions) {
           break;
         case 'Escape':
           actions.onEscape?.();
+          break;
+        case 'v':
+          if ((e.metaKey || e.ctrlKey) && actions.onPaste) {
+            e.preventDefault();
+            actions.onPaste();
+          }
           break;
       }
     };

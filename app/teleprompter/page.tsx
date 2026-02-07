@@ -6,6 +6,7 @@ import { parseSections } from '@/app/lib/sectionParser';
 import { useTeleprompterSettings } from '@/app/hooks/useTeleprompterSettings';
 import { useTeleprompterState } from '@/app/hooks/useTeleprompterState';
 import { useFullscreen } from '@/app/hooks/useFullscreen';
+import { useContentSource } from '@/app/hooks/useContentSource';
 import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
@@ -27,8 +28,8 @@ function TeleprompterContent() {
   const searchParams = useSearchParams();
   const filePath = searchParams.get('path');
 
-  const [content, setContent] = useState<string>('');
-  const [error, setError] = useState<string | null>(null);
+  const { content, isLoading: contentLoading, error: contentError, setContent: setSourceContent, isStaticMode } = useContentSource(filePath);
+
   const [manualLineIndex, setManualLineIndex] = useState(0);
 
   const viewerRef = useRef<HTMLDivElement>(null);
@@ -51,7 +52,7 @@ function TeleprompterContent() {
     error: speechError,
   } = useSpeechRecognition();
 
-  const sectionAnchors = useMemo(() => parseSections(content), [content]);
+  const sectionAnchors = useMemo(() => parseSections(content ?? ''), [content]);
 
   // Create document state for navigation and word count
   const documentState = useMemo(() => {
@@ -128,7 +129,7 @@ function TeleprompterContent() {
     jumpTargetText,
     words,
   } = useTextMatcher({
-    content,
+    content: content ?? '',
     sectionAnchors,
     isListening,
     reconnectSuccess,
@@ -498,6 +499,18 @@ function TeleprompterContent() {
     }
   }, [isListening, start, stop]);
 
+  const handlePaste = useCallback(async () => {
+    if (isListening) return; // Don't paste while listening
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text.trim()) {
+        setSourceContent(text);
+      }
+    } catch (err) {
+      console.error('Failed to read clipboard:', err);
+    }
+  }, [isListening, setSourceContent]);
+
   useKeyboardControls({
     onPreviousSection: navigateToPreviousSection,
     onNextSection: navigateToNextSection,
@@ -509,6 +522,7 @@ function TeleprompterContent() {
     onEscape: () => {
       if (isFullscreen) toggleFullscreen();
     },
+    onPaste: isStaticMode && !isListening ? handlePaste : undefined,
   });
 
   // Apply teleprompter theme
@@ -519,25 +533,26 @@ function TeleprompterContent() {
     };
   }, []);
 
-  // Load file content
-  useEffect(() => {
-    if (!filePath) return;
-
-    fetch(`/api/file?path=${encodeURIComponent(filePath)}`)
-      .then(res => {
-        if (!res.ok) throw new Error('Failed to load file');
-        return res.text();
-      })
-      .then(setContent)
-      .catch(err => setError(err.message));
-  }, [filePath]);
-
-  if (!filePath) {
+  // In local mode, require file path
+  if (!isStaticMode && !filePath) {
     return <div className={styles.error}>No file path specified</div>;
   }
 
-  if (error) {
-    return <div className={styles.error}>{error}</div>;
+  if (contentError) {
+    return <div className={styles.error}>{contentError}</div>;
+  }
+
+  if (contentLoading) {
+    return <div className={styles.loading}>Loading...</div>;
+  }
+
+  // In static mode with no content, show paste prompt
+  if (isStaticMode && !content) {
+    return (
+      <div className={styles.loading}>
+        Paste your script (Cmd/Ctrl+V) or click the 📋 button
+      </div>
+    );
   }
 
   if (!content) {
@@ -581,6 +596,8 @@ function TeleprompterContent() {
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         speechSupported={isSupported}
+        isStaticMode={isStaticMode}
+        onPaste={handlePaste}
       />
 
       <SpeechIndicator

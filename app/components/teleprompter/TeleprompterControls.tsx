@@ -16,6 +16,8 @@ interface TeleprompterControlsProps {
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   speechSupported: boolean;
+  isStaticMode?: boolean;
+  onPaste?: () => void;
 }
 
 export default function TeleprompterControls({
@@ -30,6 +32,8 @@ export default function TeleprompterControls({
   isFullscreen,
   onToggleFullscreen,
   speechSupported,
+  isStaticMode,
+  onPaste,
 }: TeleprompterControlsProps) {
   const [visible, setVisible] = useState(true);
   const [lastActivity, setLastActivity] = useState(() => Date.now());
@@ -93,6 +97,17 @@ export default function TeleprompterControls({
           <span className={styles.value}>{settings.marginPercentage}%</span>
         </div>
 
+        {/* Paste (static mode only) */}
+        {isStaticMode && onPaste && (
+          <button
+            className={styles.button}
+            onClick={onPaste}
+            title="Paste script from clipboard"
+          >
+            📋
+          </button>
+        )}
+
         {/* Practice Mode (no transcript) */}
         {speechSupported && (
           <button
@@ -104,8 +119,8 @@ export default function TeleprompterControls({
           </button>
         )}
 
-        {/* Record Mode (creates transcript) */}
-        {speechSupported && (
+        {/* Record Mode (creates transcript) - not available in static mode */}
+        {speechSupported && !isStaticMode && (
           <button
             className={`${styles.button} ${isListening && isRecordMode ? styles.listening : ''}`}
             onClick={onRecordToggle}
