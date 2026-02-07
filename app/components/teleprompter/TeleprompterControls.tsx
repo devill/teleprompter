@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { TeleprompterSettings } from '@/app/hooks/useTeleprompterSettings';
 import styles from './TeleprompterControls.module.css';
+import HelpModal from './HelpModal';
 
 interface TeleprompterControlsProps {
   settings: TeleprompterSettings;
@@ -37,6 +38,7 @@ export default function TeleprompterControls({
 }: TeleprompterControlsProps) {
   const [visible, setVisible] = useState(true);
   const [lastActivity, setLastActivity] = useState(() => Date.now());
+  const [showHelp, setShowHelp] = useState(false);
 
   // Auto-hide after 3 seconds of inactivity
   useEffect(() => {
@@ -149,7 +151,22 @@ export default function TeleprompterControls({
         >
           {isFullscreen ? '⊙' : '⛶'}
         </button>
+
+        {/* Help */}
+        <button
+          className={styles.button}
+          onClick={() => setShowHelp(true)}
+          title="Show help"
+        >
+          ?
+        </button>
       </div>
+
+      <HelpModal
+        isOpen={showHelp}
+        onClose={() => setShowHelp(false)}
+        isStaticMode={isStaticMode}
+      />
     </div>
   );
 }

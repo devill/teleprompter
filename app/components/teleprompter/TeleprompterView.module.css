@@ -38,3 +38,12 @@
   color: var(--teleprompter-text);
   transition: color var(--transition-fast);
 }
+
+/* Pink color for section headers - applies to both spoken and unspoken words */
+.headerLine .spokenWord {
+  color: #b04080;  /* Dimmed pink for spoken header words */
+}
+
+.headerLine .unspokenWord {
+  color: #ff69b4;  /* Hot pink for unspoken header words */
+}

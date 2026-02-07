@@ -37,6 +37,7 @@ interface LineData {
   text: string;
   words: string[];
   startWordIndex: number;  // Global word index where this line starts
+  isHeader: boolean;       // Whether this line was originally a markdown header
 }
 
 const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
@@ -46,16 +47,19 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
       const result: LineData[] = [];
       let globalWordIndex = 0;
 
-      const lines = content.split('\n')
-        .map(line => stripMarkdown(line))
-        .filter(line => line.trim());
+      const rawLines = content.split('\n').filter(line => line.trim());
 
-      for (const text of lines) {
+      for (const rawLine of rawLines) {
+        const isHeader = /^#{1,6}\s+/.test(rawLine);
+        const text = stripMarkdown(rawLine);
+        if (!text) continue;
+
         const words = text.split(/\s+/).filter(w => w);
         result.push({
           text,
           words,
           startWordIndex: globalWordIndex,
+          isHeader,
         });
         globalWordIndex += words.length;
       }
@@ -74,7 +78,7 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
           {lineData.map((line, lineIndex) => (
             <p
               key={lineIndex}
-              className={`${styles.line} ${lineIndex === currentLineIndex ? styles.currentLine : ''}`}
+              className={`${styles.line} ${lineIndex === currentLineIndex ? styles.currentLine : ''} ${line.isHeader ? styles.headerLine : ''}`}
               data-line-index={lineIndex}
             >
               {line.words.map((word, wordIdx) => {
