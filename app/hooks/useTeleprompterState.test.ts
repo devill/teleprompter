@@ -5,29 +5,29 @@ import { useTeleprompterState } from './useTeleprompterState';
 describe('useTeleprompterState', () => {
   describe('initial state', () => {
     it('starts with wordIndex at 0', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       expect(result.current.state.wordIndex).toBe(0);
     });
 
     it('starts with isRecordMode false', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       expect(result.current.state.isRecordMode).toBe(false);
     });
 
     it('starts with isLoopMode false', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       expect(result.current.state.isLoopMode).toBe(false);
     });
 
     it('starts with loopSectionBounds null', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       expect(result.current.state.loopSectionBounds).toBe(null);
     });
   });
 
   describe('setWordIndex', () => {
     it('updates wordIndex', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setWordIndex(50);
@@ -37,7 +37,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('clamps wordIndex to max valid index', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setWordIndex(150);
@@ -47,7 +47,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('clamps negative wordIndex to 0', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setWordIndex(-10);
@@ -57,7 +57,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('handles wordsCount of 0', () => {
-      const { result } = renderHook(() => useTeleprompterState(0));
+      const { result } = renderHook(() => useTeleprompterState(null, 0, false));
 
       act(() => {
         result.current.setWordIndex(10);
@@ -69,7 +69,7 @@ describe('useTeleprompterState', () => {
 
   describe('setIsRecordMode', () => {
     it('updates isRecordMode to true', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setIsRecordMode(true);
@@ -79,7 +79,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('updates isRecordMode to false', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setIsRecordMode(true);
@@ -94,7 +94,7 @@ describe('useTeleprompterState', () => {
 
   describe('setIsLoopMode', () => {
     it('updates isLoopMode to true', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setIsLoopMode(true);
@@ -104,7 +104,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('updates isLoopMode to false', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setIsLoopMode(true);
@@ -117,7 +117,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('clears loopSectionBounds when setting isLoopMode to false', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setIsLoopMode(true);
@@ -135,7 +135,7 @@ describe('useTeleprompterState', () => {
 
   describe('setLoopSectionBounds', () => {
     it('updates loopSectionBounds', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
@@ -145,7 +145,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('can set loopSectionBounds to null', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
@@ -158,7 +158,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('returns same state when setting equivalent bounds', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
@@ -175,7 +175,7 @@ describe('useTeleprompterState', () => {
 
   describe('reset', () => {
     it('resets all state to initial values', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
 
       act(() => {
         result.current.setWordIndex(50);
@@ -198,7 +198,7 @@ describe('useTeleprompterState', () => {
   describe('wordsCount changes', () => {
     it('clamps wordIndex when wordsCount decreases', () => {
       const { result, rerender } = renderHook(
-        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        ({ wordsCount }) => useTeleprompterState(null, wordsCount, false),
         { initialProps: { wordsCount: 100 } }
       );
 
@@ -214,7 +214,7 @@ describe('useTeleprompterState', () => {
 
     it('preserves wordIndex when wordsCount increases', () => {
       const { result, rerender } = renderHook(
-        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        ({ wordsCount }) => useTeleprompterState(null, wordsCount, false),
         { initialProps: { wordsCount: 50 } }
       );
 
@@ -229,7 +229,7 @@ describe('useTeleprompterState', () => {
 
     it('preserves wordIndex when it is still valid', () => {
       const { result, rerender } = renderHook(
-        ({ wordsCount }) => useTeleprompterState(wordsCount),
+        ({ wordsCount }) => useTeleprompterState(null, wordsCount, false),
         { initialProps: { wordsCount: 100 } }
       );
 
@@ -245,7 +245,7 @@ describe('useTeleprompterState', () => {
 
   describe('state object identity', () => {
     it('returns same state object when nothing changes', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       const firstState = result.current.state;
 
       act(() => {
@@ -256,7 +256,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('returns same state when setting same isRecordMode value', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       const firstState = result.current.state;
 
       act(() => {
@@ -267,7 +267,7 @@ describe('useTeleprompterState', () => {
     });
 
     it('returns same state when setting same isLoopMode value', () => {
-      const { result } = renderHook(() => useTeleprompterState(100));
+      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       const firstState = result.current.state;
 
       act(() => {

@@ -65,11 +65,12 @@ function TeleprompterContent() {
   // Single source of truth for teleprompter state
   const {
     state,
+    savedSession,
     setWordIndex,
     setIsRecordMode,
     setIsLoopMode,
     setLoopSectionBounds,
-  } = useTeleprompterState(wordsCount);
+  } = useTeleprompterState(filePath, wordsCount, isListening);
 
   // Ref to hold recorder functions (avoids circular dependency between hooks)
   const recorderRef = useRef<{ recordWord: (i: number) => void; recordCommand: (t: string) => void } | null>(null);
@@ -158,6 +159,42 @@ function TeleprompterContent() {
   useEffect(() => {
     recorderRef.current = recorder;
   }, [recorder]);
+
+  // Restore session after content loads (scroll, loop bounds, auto-start)
+  const hasRestoredSessionRef = useRef(false);
+  useEffect(() => {
+    // Only restore once, when words are available and we have a saved session
+    if (hasRestoredSessionRef.current) return;
+    if (words.length === 0) return;
+    if (!savedSession) return;
+
+    console.log(`[TeleprompterPage] Restoring session:`, savedSession);
+    hasRestoredSessionRef.current = true;
+
+    // Recalculate loop bounds if loop mode is active
+    if (state.isLoopMode && documentState) {
+      const bounds = getCurrentSectionBounds(documentState, state.wordIndex);
+      console.log(`[TeleprompterPage] Recalculating loop bounds:`, bounds);
+      setLoopSectionBounds(bounds);
+    }
+
+    // Scroll to restored position (with small delay to ensure DOM is ready)
+    if (state.wordIndex > 0) {
+      requestAnimationFrame(() => {
+        console.log(`[TeleprompterPage] Scrolling to restored wordIndex=${state.wordIndex}`);
+        scrollToWordFast(state.wordIndex);
+      });
+    }
+
+    // Auto-start if was listening
+    if (savedSession.wasListening) {
+      console.log(`[TeleprompterPage] Auto-starting (wasListening=true, isRecordMode=${state.isRecordMode})`);
+      // Small delay to let scroll complete first
+      setTimeout(() => {
+        start();
+      }, 500);
+    }
+  }, [words.length, savedSession, state.wordIndex, state.isLoopMode, state.isRecordMode, documentState, setLoopSectionBounds, scrollToWordFast, start]);
 
   // Continuous smooth scroll with velocity-based ease in/out
   const scrollVelocityRef = useRef(0);
