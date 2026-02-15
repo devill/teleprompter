@@ -9,9 +9,9 @@ Teleprompter is a speech-synced teleprompter app for presenters and speakers.
 Design principle: **simplicity, ease of use and extensibility**
 
 ### Storage Architecture
-- **Git repository**: Primary content storage
-- **Local storage**: Tracks recent changes
-- **File structure**: `*.md` - Raw text content (markdown)
+- **My Scripts**: IndexedDB-backed storage for user scripts (full CRUD)
+- **File System Folders**: Read-only access via File System Access API (Chromium only)
+- **Session state**: localStorage for position, loop mode, listening state per script
 
 ## Commands
 
@@ -40,20 +40,19 @@ npm run test:watch # Run tests in watch mode
 
 ### Routes
 - `/` - Redirects to /open
-- `/open` - File picker, redirects to teleprompter with selected file path
-- `/teleprompter?path=...` - Main teleprompter with speech-synced scrolling
-
-### API Routes
-- `GET/PUT /api/file?path=...` - Read/write markdown file content
+- `/open` - Script browser with source list and file picker
+- `/teleprompter?id=...` - Main teleprompter with speech-synced scrolling (id is script ID like `my-scripts:uuid` or `fs:sourceId:filename.md`)
 
 ### Code Organization
 - `app/lib/` - Pure functions with tests (speechMatcher, textNormalizer, sectionParser)
+- `app/lib/storage/` - Storage layer (IndexedDB, File System Access API, source registry)
 - `app/hooks/` - React hooks for state and behavior
 - `app/components/` - Reusable UI components
 - `app/components/teleprompter/` - Teleprompter-specific components
+- `app/components/open/` - Script browser components
 
 ### Key Systems
 
 **Teleprompter Speech Matching**: Uses Web Speech API. The `speechMatcher` tracks position word-by-word with fuzzy matching. Jump commands use trigger phrase "please jump to" followed by target text.
 
-**Transcript Recording**: In record mode, the transcript file captures only what the user actually said - matched words and voice commands. Automatic behaviors (like loop mode jumps) must NOT be recorded since the user didn't speak them.
+**Storage Layer**: `sourceRegistry` manages multiple storage sources. `myScriptsSource` provides IndexedDB CRUD. `FileSystemSource` wraps File System Access API for read-only folder access.

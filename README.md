@@ -1,36 +1,62 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Teleprompter
+
+A speech-synced teleprompter app for presenters and speakers. The text scrolls automatically as you speak, tracking your position word-by-word using the Web Speech API.
+
+## Features
+
+- **Speech-synced scrolling**: Automatically follows along as you speak
+- **Voice commands**: Jump to specific text, navigate sections, control playback
+- **Loop mode**: Practice a section repeatedly
+- **My Scripts**: Create and manage scripts in the browser (IndexedDB)
+- **Folder access**: Open markdown files from local folders (Chromium only)
+- **Paste support**: Paste scripts from clipboard, converts rich text to markdown
 
 ## Getting Started
 
-First, run the development server:
-
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open http://localhost:7313 in your browser.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Usage
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Go to `/open` to browse your scripts or add a folder
+2. Click "New Script" to create a new script, or paste content with Cmd/Ctrl+V
+3. Click a script to open it in the teleprompter
+4. Click the microphone button to start speech recognition
+5. Speak naturally - the teleprompter follows your voice
 
-## Learn More
+### Voice Commands
 
-To learn more about Next.js, take a look at the following resources:
+- "please jump to [text]" - Jump to matching text
+- "please jump back [N]" - Jump back N paragraphs
+- "please jump forward [N]" - Jump forward N paragraphs
+- "please jump to section start" - Jump to start of current section
+- "please jump to previous/next section" - Navigate between sections
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### Keyboard Shortcuts
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **↑/↓** - Navigate between sections
+- **←/→** - Navigate between paragraphs
+- **Space** - Toggle pause
+- **Page Up/Down** - Scroll by page
+- **Cmd/Ctrl+V** - Paste script
 
-## Deploy on Vercel
+## Tech Stack
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+- Next.js 16 with App Router
+- React 19
+- TypeScript
+- Vitest for testing
+- CSS Modules
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Development
+
+```bash
+npm run dev        # Start dev server
+npm run build      # Production build
+npm run lint       # Run ESLint
+npm test           # Run tests
+```
