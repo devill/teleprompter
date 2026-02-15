@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
 import { StorageSource, ScriptFile } from '@/app/lib/storage';
 import { useScriptList } from '@/app/hooks/useScriptList';
+import { useExpandedSources } from '@/app/hooks/useExpandedSources';
 import FileList from './FileList';
 import styles from './SourceList.module.css';
 
@@ -248,21 +248,8 @@ export default function SourceList({
   onRemoveFolder,
   onReconnectFolder,
 }: SourceListProps) {
-  const [expandedSources, setExpandedSources] = useState<Set<string>>(
-    new Set(['my-scripts'])
-  );
-
-  function toggleSource(sourceId: string) {
-    setExpandedSources((prev) => {
-      const next = new Set(prev);
-      if (next.has(sourceId)) {
-        next.delete(sourceId);
-      } else {
-        next.add(sourceId);
-      }
-      return next;
-    });
-  }
+  const sourceIds = sources.map((s) => s.id);
+  const { expandedSources, toggleSource } = useExpandedSources(sourceIds);
 
   const sortedSources = [...sources].sort((a, b) => {
     if (a.type === 'my-scripts') return -1;
