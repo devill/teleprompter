@@ -1,9 +1,13 @@
 'use client';
 
-import { StorageSource, ScriptFile } from '@/app/lib/storage';
+import { StorageSource, ScriptFile, FileSystemSource } from '@/app/lib/storage';
+import { countAllFiles } from '@/app/lib/storage/fileSystemSource';
 import { useScriptList } from '@/app/hooks/useScriptList';
 import { useExpandedSources } from '@/app/hooks/useExpandedSources';
+import { useFileSystemContents } from '@/app/hooks/useFileSystemContents';
+import { useExpandedFolders } from '@/app/hooks/useExpandedFolders';
 import FileList from './FileList';
+import FolderTree from './FolderTree';
 import styles from './SourceList.module.css';
 
 interface SourceItemProps {
@@ -120,9 +124,17 @@ function SourceItem({
   onNewScript,
   onReconnectFolder,
 }: SourceItemProps) {
-  const { files, isLoading, refresh } = useScriptList(source.id);
   const isMyScripts = source.type === 'my-scripts';
+  const isFileSystem = source.type === 'file-system';
   const needsPermission = source.needsPermission === true;
+
+  // For my-scripts: use flat file list
+  const { files, isLoading, refresh } = useScriptList(source.id);
+
+  // For file-system: use hierarchical contents
+  const fileSystemSource = isFileSystem ? (source as FileSystemSource) : null;
+  const { contents, isLoading: isLoadingContents } = useFileSystemContents(fileSystemSource);
+  const { expandedFolders, toggleFolder } = useExpandedFolders();
 
   async function handleDelete(fileId: string) {
     await source.deleteFile(fileId);
@@ -166,7 +178,9 @@ function SourceItem({
           <span className={styles.sourceName}>{source.name}</span>
           {!needsPermission && (
             <span className={styles.fileCount}>
-              {isLoading ? '...' : files.length}
+              {isFileSystem
+                ? (isLoadingContents ? '...' : (contents ? countAllFiles(contents) : 0))
+                : (isLoading ? '...' : files.length)}
             </span>
           )}
         </div>
@@ -218,13 +232,27 @@ function SourceItem({
         <div
           className={`${styles.sourceContent} ${!isExpanded ? styles.sourceContentCollapsed : ''}`}
         >
-          <FileList
-            files={files}
-            isLoading={isLoading}
-            showDelete={isMyScripts}
-            onDelete={handleDelete}
-            onRename={isMyScripts ? handleRename : undefined}
-          />
+          {isFileSystem ? (
+            isLoadingContents ? (
+              <div className={styles.loading}>Loading...</div>
+            ) : contents ? (
+              <FolderTree
+                files={contents.files}
+                folders={contents.folders}
+                expandedFolders={expandedFolders}
+                onToggleFolder={toggleFolder}
+                sourceId={source.id}
+              />
+            ) : null
+          ) : (
+            <FileList
+              files={files}
+              isLoading={isLoading}
+              showDelete={isMyScripts}
+              onDelete={handleDelete}
+              onRename={isMyScripts ? handleRename : undefined}
+            />
+          )}
         </div>
       )}
     </div>

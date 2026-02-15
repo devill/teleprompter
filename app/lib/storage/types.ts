@@ -21,3 +21,15 @@ export interface StorageSource extends StorageSourceInfo {
   createFile(name: string, content: string): Promise<ScriptFile>;
   requestPermission?(): Promise<boolean>;
 }
+
+export interface FolderEntry {
+  name: string;
+  path: string;  // relative path from source root, e.g., "docs" or "docs/drafts"
+  files: ScriptFile[];
+  subfolders: FolderEntry[];
+}
+
+export interface FileSystemContents {
+  files: ScriptFile[];     // files at root level
+  folders: FolderEntry[];  // subdirectories
+}
