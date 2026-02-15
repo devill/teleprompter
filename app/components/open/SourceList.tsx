@@ -1,7 +1,8 @@
 'use client';
 
-import { StorageSource, ScriptFile, FileSystemSource } from '@/app/lib/storage';
+import { StorageSource, FileSystemSource } from '@/app/lib/storage';
 import { countAllFiles } from '@/app/lib/storage/fileSystemSource';
+import { generateUniqueScriptName } from '@/app/lib/scriptNaming';
 import { useScriptList } from '@/app/hooks/useScriptList';
 import { useExpandedSources } from '@/app/hooks/useExpandedSources';
 import { useFileSystemContents } from '@/app/hooks/useFileSystemContents';
@@ -101,21 +102,6 @@ function RemoveIcon() {
   );
 }
 
-function generateUniqueName(files: ScriptFile[]): string {
-  const baseName = 'Untitled Script';
-  const existingNames = new Set(files.map(f => f.name));
-
-  if (!existingNames.has(baseName)) {
-    return baseName;
-  }
-
-  let counter = 2;
-  while (existingNames.has(`${baseName} ${counter}`)) {
-    counter++;
-  }
-  return `${baseName} ${counter}`;
-}
-
 function SourceItem({
   source,
   isExpanded,
@@ -147,7 +133,8 @@ function SourceItem({
   }
 
   async function handleNewScript() {
-    const name = generateUniqueName(files);
+    const existingNames = files.map(f => f.name);
+    const name = generateUniqueScriptName(existingNames);
     await source.createFile(name, '');
     refresh();
     onNewScript?.();

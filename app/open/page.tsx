@@ -1,6 +1,8 @@
 'use client';
 
 import { useStorageRegistry } from '@/app/hooks/useStorageRegistry';
+import { useScriptList } from '@/app/hooks/useScriptList';
+import { usePasteHandler } from '@/app/hooks/usePasteHandler';
 import SourceList from '@/app/components/open/SourceList';
 import styles from './page.module.css';
 
@@ -13,6 +15,10 @@ export default function OpenPage() {
     reconnectFolder,
     isFileSystemSupported,
   } = useStorageRegistry();
+
+  const { files } = useScriptList('my-scripts');
+  const scriptNames = files.map(f => f.name);
+  usePasteHandler(scriptNames);
 
   return (
     <div className={styles.container}>
