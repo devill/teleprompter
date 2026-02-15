@@ -4,6 +4,10 @@ interface FileSystemDirectoryHandleWithIterator extends FileSystemDirectoryHandl
   values(): AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>;
 }
 
+interface FileSystemHandleWithPermission extends FileSystemDirectoryHandle {
+  requestPermission(options: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
+}
+
 export function isFileSystemAccessSupported(): boolean {
   return typeof window !== 'undefined' && 'showDirectoryPicker' in window;
 }
@@ -39,17 +43,38 @@ async function collectMarkdownFiles(
 export class FileSystemSource implements StorageSource {
   readonly type = 'file-system' as const;
   readonly readonly = true;
+  private permissionGranted: boolean;
 
   constructor(
     private handle: FileSystemDirectoryHandle,
-    public readonly id: string
-  ) {}
+    public readonly id: string,
+    permissionGranted = true
+  ) {
+    this.permissionGranted = permissionGranted;
+  }
+
+  get needsPermission(): boolean {
+    return !this.permissionGranted;
+  }
+
+  async requestPermission(): Promise<boolean> {
+    const handle = this.handle as FileSystemHandleWithPermission;
+    const result = await handle.requestPermission({ mode: 'read' });
+    if (result === 'granted') {
+      this.permissionGranted = true;
+      return true;
+    }
+    return false;
+  }
 
   get name(): string {
     return this.handle.name;
   }
 
   async listFiles(): Promise<ScriptFile[]> {
+    if (!this.permissionGranted) {
+      return [];
+    }
     const fileHandles = await collectMarkdownFiles(
       this.handle as FileSystemDirectoryHandleWithIterator
     );

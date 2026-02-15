@@ -12,6 +12,7 @@ interface SourceItemProps {
   onToggle: () => void;
   onRemove?: () => void;
   onNewScript?: () => void;
+  onReconnectFolder?: () => Promise<void>;
 }
 
 function ChevronIcon({ expanded }: { expanded: boolean }) {
@@ -117,9 +118,11 @@ function SourceItem({
   onToggle,
   onRemove,
   onNewScript,
+  onReconnectFolder,
 }: SourceItemProps) {
   const { files, isLoading, refresh } = useScriptList(source.id);
   const isMyScripts = source.type === 'my-scripts';
+  const needsPermission = source.needsPermission === true;
 
   async function handleDelete(fileId: string) {
     await source.deleteFile(fileId);
@@ -136,6 +139,11 @@ function SourceItem({
     await source.createFile(name, '');
     refresh();
     onNewScript?.();
+  }
+
+  async function handleGrantAccess() {
+    await onReconnectFolder?.();
+    refresh();
   }
 
   return (
@@ -156,11 +164,26 @@ function SourceItem({
           <ChevronIcon expanded={isExpanded} />
           <FolderIcon />
           <span className={styles.sourceName}>{source.name}</span>
-          <span className={styles.fileCount}>
-            {isLoading ? '...' : files.length}
-          </span>
+          {!needsPermission && (
+            <span className={styles.fileCount}>
+              {isLoading ? '...' : files.length}
+            </span>
+          )}
         </div>
         <div className={styles.sourceHeaderRight}>
+          {needsPermission && onReconnectFolder && (
+            <button
+              className={styles.grantAccessButton}
+              onClick={(e) => {
+                e.stopPropagation();
+                handleGrantAccess();
+              }}
+              type="button"
+              title="Grant access to this folder"
+            >
+              Grant Access
+            </button>
+          )}
           {isMyScripts && (
             <button
               className={styles.actionButton}
@@ -191,17 +214,19 @@ function SourceItem({
           )}
         </div>
       </div>
-      <div
-        className={`${styles.sourceContent} ${!isExpanded ? styles.sourceContentCollapsed : ''}`}
-      >
-        <FileList
-          files={files}
-          isLoading={isLoading}
-          showDelete={isMyScripts}
-          onDelete={handleDelete}
-          onRename={isMyScripts ? handleRename : undefined}
-        />
-      </div>
+      {!needsPermission && (
+        <div
+          className={`${styles.sourceContent} ${!isExpanded ? styles.sourceContentCollapsed : ''}`}
+        >
+          <FileList
+            files={files}
+            isLoading={isLoading}
+            showDelete={isMyScripts}
+            onDelete={handleDelete}
+            onRename={isMyScripts ? handleRename : undefined}
+          />
+        </div>
+      )}
     </div>
   );
 }
@@ -212,6 +237,7 @@ interface SourceListProps {
   isFileSystemSupported: boolean;
   onAddFolder: () => Promise<void>;
   onRemoveFolder: (id: string) => Promise<void>;
+  onReconnectFolder: (id: string) => Promise<void>;
 }
 
 export default function SourceList({
@@ -220,6 +246,7 @@ export default function SourceList({
   isFileSystemSupported,
   onAddFolder,
   onRemoveFolder,
+  onReconnectFolder,
 }: SourceListProps) {
   const [expandedSources, setExpandedSources] = useState<Set<string>>(
     new Set(['my-scripts'])
@@ -258,6 +285,11 @@ export default function SourceList({
           onRemove={
             source.type === 'file-system'
               ? () => onRemoveFolder(source.id)
+              : undefined
+          }
+          onReconnectFolder={
+            source.type === 'file-system'
+              ? () => onReconnectFolder(source.id)
               : undefined
           }
         />

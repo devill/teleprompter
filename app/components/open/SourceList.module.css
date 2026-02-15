@@ -155,3 +155,24 @@
   color: var(--color-error);
   text-align: center;
 }
+
+.grantAccessButton {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--color-accent);
+  background: transparent;
+  border: 1px solid var(--color-accent);
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: background-color var(--transition-fast), color var(--transition-fast);
+}
+
+.grantAccessButton:hover {
+  background-color: var(--color-accent);
+  color: var(--color-accent-text);
+}

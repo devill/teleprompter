@@ -10,6 +10,7 @@ export default function OpenPage() {
     isLoading,
     addFolder,
     removeFolder,
+    reconnectFolder,
     isFileSystemSupported,
   } = useStorageRegistry();
 
@@ -23,6 +24,7 @@ export default function OpenPage() {
           isFileSystemSupported={isFileSystemSupported}
           onAddFolder={addFolder}
           onRemoveFolder={removeFolder}
+          onReconnectFolder={async (id) => { await reconnectFolder(id); }}
         />
       </div>
     </div>

@@ -5,6 +5,7 @@ import { getAllFolderHandles, saveFolderHandle, deleteFolderHandle, StoredFolder
 
 interface FileSystemHandleWithPermission extends FileSystemDirectoryHandle {
   requestPermission(options: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
+  queryPermission(options: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
 }
 
 export interface SourceRegistry {
@@ -14,6 +15,7 @@ export interface SourceRegistry {
   removeFolder(id: string): Promise<void>;
   initialize(): Promise<void>;
   getFile(fileId: string): Promise<{ source: StorageSource; content: string }>;
+  reconnectFolder(id: string): Promise<boolean>;
 }
 
 function createSourceRegistry(): SourceRegistry {
@@ -27,18 +29,16 @@ function createSourceRegistry(): SourceRegistry {
     const storedHandles = await getAllFolderHandles();
 
     for (const stored of storedHandles) {
+      let permissionGranted = false;
       try {
         const handle = stored.handle as FileSystemHandleWithPermission;
-        const permission = await handle.requestPermission({ mode: 'read' });
-        if (permission === 'granted') {
-          const source = new FileSystemSource(stored.handle, stored.id);
-          sources.set(stored.id, source);
-        } else {
-          await deleteFolderHandle(stored.id);
-        }
+        const permission = await handle.queryPermission({ mode: 'read' });
+        permissionGranted = permission === 'granted';
       } catch {
-        await deleteFolderHandle(stored.id);
+        permissionGranted = false;
       }
+      const source = new FileSystemSource(stored.handle, stored.id, permissionGranted);
+      sources.set(stored.id, source);
     }
   }
 
@@ -100,6 +100,15 @@ function createSourceRegistry(): SourceRegistry {
       }
       const content = await source.readFile(fileId);
       return { source, content };
+    },
+
+    async reconnectFolder(id: string): Promise<boolean> {
+      const source = sources.get(id);
+      if (!source || source.type !== 'file-system') return false;
+      const fsSource = source as FileSystemSource;
+      if (!fsSource.needsPermission) return true;
+      const granted = await fsSource.requestPermission();
+      return granted;
     },
   };
 }

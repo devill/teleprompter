@@ -9,6 +9,7 @@ export interface StorageSourceInfo {
   name: string;
   type: 'my-scripts' | 'file-system';
   readonly: boolean;
+  needsPermission?: boolean;
 }
 
 export interface StorageSource extends StorageSourceInfo {
@@ -18,4 +19,5 @@ export interface StorageSource extends StorageSourceInfo {
   deleteFile(id: string): Promise<void>;
   renameFile(id: string, newName: string): Promise<void>;
   createFile(name: string, content: string): Promise<ScriptFile>;
+  requestPermission?(): Promise<boolean>;
 }

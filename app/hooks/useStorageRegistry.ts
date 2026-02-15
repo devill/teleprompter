@@ -29,11 +29,20 @@ export function useStorageRegistry() {
     refreshSources();
   }, [refreshSources]);
 
+  const reconnectFolder = useCallback(async (id: string) => {
+    const success = await sourceRegistry.reconnectFolder(id);
+    if (success) {
+      refreshSources();
+    }
+    return success;
+  }, [refreshSources]);
+
   return {
     sources,
     isLoading,
     addFolder,
     removeFolder,
+    reconnectFolder,
     isFileSystemSupported: isFileSystemAccessSupported(),
   };
 }
