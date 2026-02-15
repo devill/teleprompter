@@ -6,10 +6,9 @@ import styles from './HelpModal.module.css';
 interface HelpModalProps {
   isOpen: boolean;
   onClose: () => void;
-  isStaticMode?: boolean;
 }
 
-export default function HelpModal({ isOpen, onClose, isStaticMode }: HelpModalProps) {
+export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -88,12 +87,8 @@ export default function HelpModal({ isOpen, onClose, isStaticMode }: HelpModalPr
             <dt>Escape</dt>
             <dd>Exit fullscreen</dd>
 
-            {isStaticMode && (
-              <>
-                <dt>Cmd/Ctrl+V</dt>
-                <dd>Paste script</dd>
-              </>
-            )}
+            <dt>Cmd/Ctrl+V</dt>
+            <dd>Paste script</dd>
           </dl>
         </section>
       </div>

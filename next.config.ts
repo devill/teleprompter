@@ -6,9 +6,6 @@ const nextConfig: NextConfig = {
   output: isStaticExport ? 'export' : undefined,
   basePath: isStaticExport ? '/teleprompter' : '',
   trailingSlash: true,
-  env: {
-    NEXT_PUBLIC_STATIC_MODE: isStaticExport ? 'true' : 'false',
-  },
 };
 
 export default nextConfig;

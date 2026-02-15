@@ -1,50 +1,89 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { sourceRegistry, StorageSource } from '@/app/lib/storage';
 
-const STATIC_STORAGE_KEY = 'teleprompter_static_content';
-const isStaticMode = process.env.NEXT_PUBLIC_STATIC_MODE === 'true';
+interface ContentSourceResult {
+  content: string | null;
+  isLoading: boolean;
+  error: string | null;
+  setContent: (text: string) => void;
+  canEdit: boolean;
+}
 
-export function useContentSource(filePath: string | null) {
-  // In static mode, we load synchronously from localStorage after mount
-  // so start with isLoading: false to show the paste prompt immediately
-  const [content, setContentState] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(!isStaticMode);
+interface LoadedData {
+  content: string;
+  source: StorageSource;
+}
+
+export function useContentSource(scriptId: string | null): ContentSourceResult {
+  // Track which scriptId we've successfully loaded
+  const [loadedScriptId, setLoadedScriptId] = useState<string | null>(null);
+  const [loadedData, setLoadedData] = useState<LoadedData | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Track current scriptId to detect stale responses
+  const currentScriptIdRef = useRef(scriptId);
+
   useEffect(() => {
-    if (isStaticMode) {
-      // Static mode: load from localStorage (only on client)
-      const saved = localStorage.getItem(STATIC_STORAGE_KEY);
-      setContentState(saved);
-    } else if (filePath) {
-      // Local mode: fetch from API
-      setIsLoading(true);
-      setError(null);
-      fetch(`/api/file?path=${encodeURIComponent(filePath)}`)
-        .then(res => {
-          if (!res.ok) throw new Error('Failed to load file');
-          return res.text();
-        })
-        .then(text => {
-          setContentState(text);
-          setIsLoading(false);
-        })
-        .catch(err => {
+    currentScriptIdRef.current = scriptId;
+  });
+
+  useEffect(() => {
+    if (!scriptId) {
+      return;
+    }
+
+    sourceRegistry
+      .getFile(scriptId)
+      .then(({ source: loadedSource, content: loadedContent }) => {
+        // Only update if this is still the current scriptId
+        if (currentScriptIdRef.current !== scriptId) return;
+        setLoadedData({ content: loadedContent, source: loadedSource });
+        setLoadedScriptId(scriptId);
+        setError(null);
+      })
+      .catch((err: Error) => {
+        if (currentScriptIdRef.current !== scriptId) return;
+        setError(err.message);
+        setLoadedData(null);
+        setLoadedScriptId(scriptId);
+      });
+  }, [scriptId]);
+
+  const setContent = useCallback(
+    (text: string) => {
+      if (!loadedData) return;
+      setLoadedData(prev => prev ? { ...prev, content: text } : null);
+      if (scriptId && !loadedData.source.readonly) {
+        loadedData.source.writeFile(scriptId, text).catch((err: Error) => {
           setError(err.message);
-          setIsLoading(false);
         });
-    } else {
-      setIsLoading(false);
-    }
-  }, [filePath]);
+      }
+    },
+    [loadedData, scriptId]
+  );
 
-  const setContent = useCallback((text: string) => {
-    setContentState(text);
-    if (isStaticMode) {
-      localStorage.setItem(STATIC_STORAGE_KEY, text);
-    }
-  }, []);
+  // Derive states
+  const isLoading = useMemo(() => {
+    if (scriptId === null) return false;
+    // Loading if we have a scriptId but haven't loaded it yet
+    return loadedScriptId !== scriptId;
+  }, [scriptId, loadedScriptId]);
 
-  return { content, isLoading, error, setContent, isStaticMode };
+  const content = useMemo(() => {
+    if (scriptId === null) return null;
+    if (loadedScriptId !== scriptId) return null;
+    return loadedData?.content ?? null;
+  }, [scriptId, loadedScriptId, loadedData]);
+
+  const canEdit = loadedData !== null && !loadedData.source.readonly;
+
+  return {
+    content,
+    isLoading,
+    error: loadedScriptId === scriptId ? error : null,
+    setContent,
+    canEdit,
+  };
 }

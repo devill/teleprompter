@@ -9,15 +9,12 @@ interface TeleprompterControlsProps {
   settings: TeleprompterSettings;
   onSettingsChange: (settings: Partial<TeleprompterSettings>) => void;
   isListening: boolean;
-  isRecordMode: boolean;
-  onPracticeToggle: () => void;
-  onRecordToggle: () => void;
+  onListeningToggle: () => void;
   isLoopMode: boolean;
   onLoopModeToggle: () => void;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   speechSupported: boolean;
-  isStaticMode?: boolean;
   onPaste?: () => void;
 }
 
@@ -25,15 +22,12 @@ export default function TeleprompterControls({
   settings,
   onSettingsChange,
   isListening,
-  isRecordMode,
-  onPracticeToggle,
-  onRecordToggle,
+  onListeningToggle,
   isLoopMode,
   onLoopModeToggle,
   isFullscreen,
   onToggleFullscreen,
   speechSupported,
-  isStaticMode,
   onPaste,
 }: TeleprompterControlsProps) {
   const [visible, setVisible] = useState(true);
@@ -110,25 +104,14 @@ export default function TeleprompterControls({
           </button>
         )}
 
-        {/* Practice Mode (no transcript) */}
+        {/* Speech Recognition Toggle */}
         {speechSupported && (
           <button
-            className={`${styles.button} ${isListening && !isRecordMode ? styles.listening : ''}`}
-            onClick={onPracticeToggle}
-            title={isListening && !isRecordMode ? 'Stop practice' : 'Practice (no recording)'}
+            className={`${styles.button} ${isListening ? styles.listening : ''}`}
+            onClick={onListeningToggle}
+            title={isListening ? 'Stop listening' : 'Start listening'}
           >
             🎤
-          </button>
-        )}
-
-        {/* Record Mode (creates transcript) - not available in static mode */}
-        {speechSupported && !isStaticMode && (
-          <button
-            className={`${styles.button} ${isListening && isRecordMode ? styles.listening : ''}`}
-            onClick={onRecordToggle}
-            title={isListening && isRecordMode ? 'Stop recording' : 'Record (saves transcript)'}
-          >
-            🔴
           </button>
         )}
 
@@ -165,7 +148,6 @@ export default function TeleprompterControls({
       <HelpModal
         isOpen={showHelp}
         onClose={() => setShowHelp(false)}
-        isStaticMode={isStaticMode}
       />
     </div>
   );

@@ -9,11 +9,6 @@ describe('useTeleprompterState', () => {
       expect(result.current.state.wordIndex).toBe(0);
     });
 
-    it('starts with isRecordMode false', () => {
-      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
-      expect(result.current.state.isRecordMode).toBe(false);
-    });
-
     it('starts with isLoopMode false', () => {
       const { result } = renderHook(() => useTeleprompterState(null, 100, false));
       expect(result.current.state.isLoopMode).toBe(false);
@@ -64,31 +59,6 @@ describe('useTeleprompterState', () => {
       });
 
       expect(result.current.state.wordIndex).toBe(0);
-    });
-  });
-
-  describe('setIsRecordMode', () => {
-    it('updates isRecordMode to true', () => {
-      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
-
-      act(() => {
-        result.current.setIsRecordMode(true);
-      });
-
-      expect(result.current.state.isRecordMode).toBe(true);
-    });
-
-    it('updates isRecordMode to false', () => {
-      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
-
-      act(() => {
-        result.current.setIsRecordMode(true);
-      });
-      act(() => {
-        result.current.setIsRecordMode(false);
-      });
-
-      expect(result.current.state.isRecordMode).toBe(false);
     });
   });
 
@@ -179,7 +149,6 @@ describe('useTeleprompterState', () => {
 
       act(() => {
         result.current.setWordIndex(50);
-        result.current.setIsRecordMode(true);
         result.current.setIsLoopMode(true);
         result.current.setLoopSectionBounds({ startWordIndex: 10, endWordIndex: 50 });
       });
@@ -189,7 +158,6 @@ describe('useTeleprompterState', () => {
       });
 
       expect(result.current.state.wordIndex).toBe(0);
-      expect(result.current.state.isRecordMode).toBe(false);
       expect(result.current.state.isLoopMode).toBe(false);
       expect(result.current.state.loopSectionBounds).toBe(null);
     });
@@ -250,17 +218,6 @@ describe('useTeleprompterState', () => {
 
       act(() => {
         result.current.setWordIndex(0);
-      });
-
-      expect(result.current.state).toBe(firstState);
-    });
-
-    it('returns same state when setting same isRecordMode value', () => {
-      const { result } = renderHook(() => useTeleprompterState(null, 100, false));
-      const firstState = result.current.state;
-
-      act(() => {
-        result.current.setIsRecordMode(false);
       });
 
       expect(result.current.state).toBe(firstState);

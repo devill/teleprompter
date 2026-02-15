@@ -1,0 +1,111 @@
+.backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+}
+
+.modal {
+  background: rgba(30, 30, 30, 0.95);
+  border-radius: var(--radius-xl);
+  padding: var(--space-6);
+  max-width: 400px;
+  width: 90%;
+  position: relative;
+  box-shadow: var(--shadow-xl);
+}
+
+.title {
+  font-family: var(--font-sans);
+  font-size: var(--text-2xl);
+  color: var(--teleprompter-text);
+  margin: 0 0 var(--space-4) 0;
+}
+
+.message {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--teleprompter-text-muted);
+  margin: 0 0 var(--space-3) 0;
+}
+
+.scriptName {
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  color: var(--teleprompter-text);
+  margin: 0 0 var(--space-5) 0;
+}
+
+.scriptName strong {
+  color: var(--teleprompter-accent);
+}
+
+.buttons {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.replaceButton,
+.createButton,
+.cancelButton {
+  flex: 1;
+  min-width: 100px;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.replaceButton {
+  background: var(--teleprompter-accent);
+  border: none;
+  color: var(--color-black);
+}
+
+.replaceButton:hover:not(:disabled) {
+  background: var(--teleprompter-accent-hover);
+}
+
+.replaceButton:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.createButton {
+  background: transparent;
+  border: 1px solid var(--teleprompter-accent);
+  color: var(--teleprompter-accent);
+}
+
+.createButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.cancelButton {
+  background: transparent;
+  border: 1px solid var(--teleprompter-text-muted);
+  color: var(--teleprompter-text-muted);
+}
+
+.cancelButton:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: var(--teleprompter-text);
+  border-color: var(--teleprompter-text);
+}
+
+.hint {
+  font-family: var(--font-sans);
+  font-size: var(--text-sm);
+  color: var(--teleprompter-text-muted);
+  margin: var(--space-4) 0 0 0;
+  font-style: italic;
+}

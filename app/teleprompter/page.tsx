@@ -10,7 +10,6 @@ import { useContentSource } from '@/app/hooks/useContentSource';
 import { useKeyboardControls } from '@/app/hooks/useKeyboardControls';
 import { useSpeechRecognition } from '@/app/hooks/useSpeechRecognition';
 import { useTextMatcher } from '@/app/hooks/useTextMatcher';
-import { useTranscriptRecorder } from '@/app/hooks/useTranscriptRecorder';
 import {
   createDocumentState,
   jumpToNextSection,
@@ -20,19 +19,27 @@ import {
   getCurrentSectionBounds,
 } from '@/app/lib/speechMatcher';
 import { htmlToMarkdown } from '@/app/lib/htmlToMarkdown';
+import { myScriptsSource } from '@/app/lib/storage';
 import TeleprompterView from '@/app/components/teleprompter/TeleprompterView';
 import TeleprompterControls from '@/app/components/teleprompter/TeleprompterControls';
 import SpeechIndicator from '@/app/components/teleprompter/SpeechIndicator';
+import PasteModal from '@/app/components/teleprompter/PasteModal';
 import styles from './page.module.css';
+
+interface PasteModalState {
+  isOpen: boolean;
+  pendingContent: string;
+}
 
 function TeleprompterContent() {
   const searchParams = useSearchParams();
-  const filePath = searchParams.get('path');
+  const scriptId = searchParams.get('id');
   const router = useRouter();
 
-  const { content, isLoading: contentLoading, error: contentError, setContent: setSourceContent, isStaticMode } = useContentSource(filePath);
+  const { content, isLoading: contentLoading, error: contentError, setContent: setSourceContent, canEdit } = useContentSource(scriptId);
 
   const [manualLineIndex, setManualLineIndex] = useState(0);
+  const [pasteModal, setPasteModal] = useState<PasteModalState>({ isOpen: false, pendingContent: '' });
 
   const viewerRef = useRef<HTMLDivElement>(null);
   const isUserScrollingRef = useRef(false);
@@ -70,13 +77,9 @@ function TeleprompterContent() {
     state,
     savedSession,
     setWordIndex,
-    setIsRecordMode,
     setIsLoopMode,
     setLoopSectionBounds,
-  } = useTeleprompterState(filePath, wordsCount, isListening);
-
-  // Ref to hold recorder functions (avoids circular dependency between hooks)
-  const recorderRef = useRef<{ recordWord: (i: number) => void; recordCommand: (t: string) => void } | null>(null);
+  } = useTeleprompterState(scriptId, wordsCount, isListening);
 
   // Navigation helper that updates both wordIndex and loop bounds (for explicit navigation)
   const navigateToWord = useCallback((wordIndex: number) => {
@@ -143,25 +146,8 @@ function TeleprompterContent() {
     onLoopBoundsChange: setLoopSectionBounds,
     onMatch: (result) => {
       scrollToWordFast(result.globalWordIndex);
-      recorderRef.current?.recordWord(result.globalWordIndex);
-    },
-    onCommand: (commandText) => {
-      recorderRef.current?.recordCommand(commandText);
     },
   });
-
-  // Initialize transcript recorder (after useTextMatcher provides words)
-  // Only record transcript when in record mode, not during practice
-  const recorder = useTranscriptRecorder({
-    filePath,
-    words,
-    isRecording: state.isRecordMode && isListening,
-  });
-
-  // Update ref so callbacks use latest recorder
-  useEffect(() => {
-    recorderRef.current = recorder;
-  }, [recorder]);
 
   // Restore session after content loads (scroll, loop bounds, auto-start)
   const hasRestoredSessionRef = useRef(false);
@@ -191,13 +177,13 @@ function TeleprompterContent() {
 
     // Auto-start if was listening
     if (savedSession.wasListening) {
-      console.log(`[TeleprompterPage] Auto-starting (wasListening=true, isRecordMode=${state.isRecordMode})`);
+      console.log(`[TeleprompterPage] Auto-starting (wasListening=true)`);
       // Small delay to let scroll complete first
       setTimeout(() => {
         start();
       }, 500);
     }
-  }, [words.length, savedSession, state.wordIndex, state.isLoopMode, state.isRecordMode, documentState, setLoopSectionBounds, scrollToWordFast, start]);
+  }, [words.length, savedSession, state.wordIndex, state.isLoopMode, documentState, setLoopSectionBounds, scrollToWordFast, start]);
 
   // Continuous smooth scroll with velocity-based ease in/out
   const scrollVelocityRef = useRef(0);
@@ -501,51 +487,69 @@ function TeleprompterContent() {
     }
   }, [isListening, start, stop]);
 
-  const handlePaste = useCallback(async () => {
-    if (isListening) return; // Don't paste while listening
+  const readClipboardContent = useCallback(async (): Promise<string> => {
     try {
-      // Try to read HTML first (for rich text from Word/Docs)
       const clipboardItems = await navigator.clipboard.read();
-      let content = '';
-
       for (const item of clipboardItems) {
-        // Prefer HTML to preserve heading structure
         if (item.types.includes('text/html')) {
           const blob = await item.getType('text/html');
           const html = await blob.text();
-          content = htmlToMarkdown(html);
-          break;
+          return htmlToMarkdown(html);
         }
-        // Fall back to plain text
         if (item.types.includes('text/plain')) {
           const blob = await item.getType('text/plain');
-          content = await blob.text();
+          return await blob.text();
         }
+      }
+      return '';
+    } catch {
+      return await navigator.clipboard.readText();
+    }
+  }, []);
+
+  const createNewScript = useCallback(async (pastedContent: string) => {
+    const newScript = await myScriptsSource.createFile('Untitled Script', pastedContent);
+    router.replace(`/teleprompter?id=${encodeURIComponent(newScript.id)}`);
+  }, [router]);
+
+  const handlePaste = useCallback(async () => {
+    if (isListening) return;
+
+    try {
+      const pastedContent = await readClipboardContent();
+      if (!pastedContent.trim()) return;
+
+      // No script open - create new one directly
+      if (!scriptId || !content) {
+        await createNewScript(pastedContent);
+        return;
       }
 
-      if (content.trim()) {
-        setSourceContent(content);
-        // Clear path when pasting new content (switches to static mode)
-        if (filePath) {
-          router.replace('/teleprompter');
-        }
-      }
+      // Script is open - show modal to ask user
+      setPasteModal({ isOpen: true, pendingContent: pastedContent });
     } catch (err) {
-      // Fall back to readText if read() fails (e.g., permissions)
-      try {
-        const text = await navigator.clipboard.readText();
-        if (text.trim()) {
-          setSourceContent(text);
-          // Clear path when pasting new content (switches to static mode)
-          if (filePath) {
-            router.replace('/teleprompter');
-          }
-        }
-      } catch {
-        console.error('Failed to read clipboard:', err);
-      }
+      console.error('Failed to read clipboard:', err);
     }
-  }, [isListening, setSourceContent, filePath, router]);
+  }, [isListening, scriptId, content, readClipboardContent, createNewScript]);
+
+  const handlePasteReplace = useCallback(() => {
+    if (pasteModal.pendingContent.trim()) {
+      setSourceContent(pasteModal.pendingContent);
+    }
+    setPasteModal({ isOpen: false, pendingContent: '' });
+  }, [pasteModal.pendingContent, setSourceContent]);
+
+  const handlePasteCreateNew = useCallback(async () => {
+    const pendingContent = pasteModal.pendingContent;
+    setPasteModal({ isOpen: false, pendingContent: '' });
+    if (pendingContent.trim()) {
+      await createNewScript(pendingContent);
+    }
+  }, [pasteModal.pendingContent, createNewScript]);
+
+  const handlePasteCancel = useCallback(() => {
+    setPasteModal({ isOpen: false, pendingContent: '' });
+  }, []);
 
   useKeyboardControls({
     onPreviousSection: navigateToPreviousSection,
@@ -578,7 +582,7 @@ function TeleprompterContent() {
   }
 
   // Show paste prompt when no content source (static mode or local mode without file)
-  if (!content && (isStaticMode || !filePath)) {
+  if (!content && (!canEdit || !scriptId)) {
     return (
       <div className={styles.loading}>
         Paste your script (Cmd/Ctrl+V) or click the 📋 button
@@ -605,29 +609,12 @@ function TeleprompterContent() {
         settings={settings}
         onSettingsChange={updateSettings}
         isListening={isListening}
-        isRecordMode={state.isRecordMode}
-        onPracticeToggle={() => {
-          if (isListening) {
-            stop();
-          } else {
-            setIsRecordMode(false);
-            start();
-          }
-        }}
-        onRecordToggle={() => {
-          if (isListening) {
-            stop();
-          } else {
-            setIsRecordMode(true);
-            start();
-          }
-        }}
+        onListeningToggle={togglePause}
         isLoopMode={state.isLoopMode}
         onLoopModeToggle={() => setIsLoopMode(!state.isLoopMode)}
         isFullscreen={isFullscreen}
         onToggleFullscreen={toggleFullscreen}
         speechSupported={isSupported}
-        isStaticMode={isStaticMode}
         onPaste={handlePaste}
       />
 
@@ -639,6 +626,15 @@ function TeleprompterContent() {
         error={speechError}
         jumpModeStatus={jumpModeStatus}
         jumpTargetText={jumpTargetText}
+      />
+
+      <PasteModal
+        isOpen={pasteModal.isOpen}
+        scriptName={scriptId ?? 'Current Script'}
+        canReplace={canEdit}
+        onReplace={handlePasteReplace}
+        onCreateNew={handlePasteCreateNew}
+        onCancel={handlePasteCancel}
       />
     </>
   );

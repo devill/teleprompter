@@ -9,14 +9,12 @@ export interface SectionBounds {
 
 export interface TeleprompterState {
   wordIndex: number;
-  isRecordMode: boolean;
   isLoopMode: boolean;
   loopSectionBounds: SectionBounds | null;
 }
 
 const INITIAL_STATE: TeleprompterState = {
   wordIndex: 0,
-  isRecordMode: false,
   isLoopMode: false,
   loopSectionBounds: null,
 };
@@ -26,24 +24,23 @@ const SAVE_DEBOUNCE_MS = 500;
 
 interface PersistedSession {
   wordIndex: number;
-  isRecordMode: boolean;
   isLoopMode: boolean;
   wasListening: boolean;
 }
 
-function getStorageKey(filePath: string | null): string | null {
-  if (!filePath) return null;
-  return `${STORAGE_KEY_PREFIX}${filePath}`;
+function getStorageKey(scriptId: string | null): string | null {
+  if (!scriptId) return null;
+  return `${STORAGE_KEY_PREFIX}${scriptId}`;
 }
 
-function loadSavedSession(filePath: string | null): PersistedSession | null {
+function loadSavedSession(scriptId: string | null): PersistedSession | null {
   if (typeof window === 'undefined') {
     console.log('[TeleprompterState] loadSavedSession: SSR, returning null');
     return null;
   }
-  const key = getStorageKey(filePath);
+  const key = getStorageKey(scriptId);
   if (!key) {
-    console.log('[TeleprompterState] loadSavedSession: no filePath, returning null');
+    console.log('[TeleprompterState] loadSavedSession: no scriptId, returning null');
     return null;
   }
   const saved = localStorage.getItem(key);
@@ -65,27 +62,25 @@ export interface UseTeleprompterStateReturn {
   state: TeleprompterState;
   savedSession: PersistedSession | null;
   setWordIndex: (index: number) => void;
-  setIsRecordMode: (value: boolean) => void;
   setIsLoopMode: (value: boolean) => void;
   setLoopSectionBounds: (bounds: SectionBounds | null) => void;
   reset: () => void;
 }
 
 export function useTeleprompterState(
-  filePath: string | null,
+  scriptId: string | null,
   wordsCount: number,
   isListening: boolean = false
 ): UseTeleprompterStateReturn {
   // Load saved session once on mount
-  const [savedSession] = useState<PersistedSession | null>(() => loadSavedSession(filePath));
+  const [savedSession] = useState<PersistedSession | null>(() => loadSavedSession(scriptId));
 
   const [state, setState] = useState<TeleprompterState>(() => {
-    console.log(`[TeleprompterState] useState init: filePath="${filePath}", savedSession=`, savedSession);
+    console.log(`[TeleprompterState] useState init: scriptId="${scriptId}", savedSession=`, savedSession);
     if (savedSession) {
       return {
         ...INITIAL_STATE,
         wordIndex: Math.max(0, savedSession.wordIndex),
-        isRecordMode: savedSession.isRecordMode,
         isLoopMode: savedSession.isLoopMode,
         // loopSectionBounds will be recalculated by page.tsx
       };
@@ -97,15 +92,14 @@ export function useTeleprompterState(
 
   // Save session to localStorage (debounced)
   useEffect(() => {
-    const key = getStorageKey(filePath);
+    const key = getStorageKey(scriptId);
     if (!key) {
-      console.log(`[TeleprompterState] save effect: no key (filePath="${filePath}"), skipping save`);
+      console.log(`[TeleprompterState] save effect: no key (scriptId="${scriptId}"), skipping save`);
       return;
     }
 
     const sessionToSave: PersistedSession = {
       wordIndex: state.wordIndex,
-      isRecordMode: state.isRecordMode,
       isLoopMode: state.isLoopMode,
       wasListening: isListening,
     };
@@ -126,7 +120,7 @@ export function useTeleprompterState(
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [filePath, state.wordIndex, state.isRecordMode, state.isLoopMode, isListening]);
+  }, [scriptId, state.wordIndex, state.isLoopMode, isListening]);
 
   // Clamp wordIndex when wordsCount changes (e.g., content loaded/changed)
   useEffect(() => {
@@ -149,13 +143,6 @@ export function useTeleprompterState(
       return { ...prev, wordIndex: clampedIndex };
     });
   }, [wordsCount]);
-
-  const setIsRecordMode = useCallback((value: boolean) => {
-    setState(prev => {
-      if (prev.isRecordMode === value) return prev;
-      return { ...prev, isRecordMode: value };
-    });
-  }, []);
 
   const setIsLoopMode = useCallback((value: boolean) => {
     setState(prev => {
@@ -188,7 +175,6 @@ export function useTeleprompterState(
     state,
     savedSession,
     setWordIndex,
-    setIsRecordMode,
     setIsLoopMode,
     setLoopSectionBounds,
     reset,
