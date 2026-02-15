@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { StorageSource } from '@/app/lib/storage';
+import { StorageSource, ScriptFile } from '@/app/lib/storage';
 import { useScriptList } from '@/app/hooks/useScriptList';
 import FileList from './FileList';
 import styles from './SourceList.module.css';
@@ -96,6 +96,21 @@ function RemoveIcon() {
   );
 }
 
+function generateUniqueName(files: ScriptFile[]): string {
+  const baseName = 'Untitled Script';
+  const existingNames = new Set(files.map(f => f.name));
+
+  if (!existingNames.has(baseName)) {
+    return baseName;
+  }
+
+  let counter = 2;
+  while (existingNames.has(`${baseName} ${counter}`)) {
+    counter++;
+  }
+  return `${baseName} ${counter}`;
+}
+
 function SourceItem({
   source,
   isExpanded,
@@ -111,8 +126,14 @@ function SourceItem({
     refresh();
   }
 
+  async function handleRename(fileId: string, newName: string) {
+    await source.renameFile(fileId, newName);
+    refresh();
+  }
+
   async function handleNewScript() {
-    await source.createFile('Untitled Script', '');
+    const name = generateUniqueName(files);
+    await source.createFile(name, '');
     refresh();
     onNewScript?.();
   }
@@ -178,6 +199,7 @@ function SourceItem({
           isLoading={isLoading}
           showDelete={isMyScripts}
           onDelete={handleDelete}
+          onRename={isMyScripts ? handleRename : undefined}
         />
       </div>
     </div>
