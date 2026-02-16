@@ -47,3 +47,26 @@
 .headerLine .unspokenWord {
   color: #ff69b4;  /* Hot pink for unspoken header words */
 }
+
+/* Stage directions: non-speakable content like {pause} or {look at camera} */
+.stageDirection {
+  font-style: italic;
+  font-size: 0.9em;
+}
+
+.stageDirection.spokenWord {
+  color: #4b5563;  /* Darker gray than regular spoken words */
+}
+
+.stageDirection.unspokenWord {
+  color: #9ca3af;  /* Lighter gray than regular text - dimmed */
+}
+
+/* Stage directions in headers */
+.headerLine .stageDirection.spokenWord {
+  color: #803060;  /* Dimmer pink than regular header spoken */
+}
+
+.headerLine .stageDirection.unspokenWord {
+  color: #d87093;  /* Dimmer pink than regular header unspoken */
+}

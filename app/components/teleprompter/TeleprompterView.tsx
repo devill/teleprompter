@@ -2,6 +2,7 @@
 
 import { forwardRef, useMemo } from 'react';
 import styles from './TeleprompterView.module.css';
+import { processBrackets, ProcessedWord } from '@/app/lib/bracketProcessor';
 
 interface TeleprompterViewProps {
   content: string;
@@ -35,7 +36,7 @@ function stripMarkdown(text: string): string {
 
 interface LineData {
   text: string;
-  words: string[];
+  words: ProcessedWord[];
   startWordIndex: number;  // Global word index where this line starts
   isHeader: boolean;       // Whether this line was originally a markdown header
 }
@@ -51,17 +52,23 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
 
       for (const rawLine of rawLines) {
         const isHeader = /^#{1,6}\s+/.test(rawLine);
-        const text = stripMarkdown(rawLine);
-        if (!text) continue;
+        const strippedLine = stripMarkdown(rawLine);
+        if (!strippedLine) continue;
 
-        const words = text.split(/\s+/).filter(w => w);
+        // Process brackets on the stripped line
+        const [processedLine] = processBrackets(strippedLine);
+        if (!processedLine || processedLine.words.length === 0) {
+          // Line with only bracket content that was removed
+          continue;
+        }
+
         result.push({
-          text,
-          words,
+          text: processedLine.displayText,
+          words: processedLine.words,
           startWordIndex: globalWordIndex,
           isHeader,
         });
-        globalWordIndex += words.length;
+        globalWordIndex += processedLine.words.length;
       }
 
       return result;
@@ -81,16 +88,18 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
               className={`${styles.line} ${lineIndex === currentLineIndex ? styles.currentLine : ''} ${line.isHeader ? styles.headerLine : ''}`}
               data-line-index={lineIndex}
             >
-              {line.words.map((word, wordIdx) => {
+              {line.words.map((wordData, wordIdx) => {
                 const globalIdx = line.startWordIndex + wordIdx;
                 const isSpoken = globalIdx < currentWordIndex;
+                const stateClass = isSpoken ? styles.spokenWord : styles.unspokenWord;
+                const directionClass = !wordData.speakable ? styles.stageDirection : '';
                 return (
                   <span
                     key={wordIdx}
                     data-word-index={globalIdx}
-                    className={isSpoken ? styles.spokenWord : styles.unspokenWord}
+                    className={`${stateClass} ${directionClass}`}
                   >
-                    {word}
+                    {wordData.text}
                     {wordIdx < line.words.length - 1 ? ' ' : ''}
                   </span>
                 );

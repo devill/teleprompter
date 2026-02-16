@@ -31,10 +31,10 @@ describe('createDocumentState', () => {
     const state = createDocumentState(content, []);
 
     expect(state.words.length).toBe(4);
-    expect(state.words[0]).toEqual({ word: 'first', lineIndex: 0, wordIndexInLine: 0, globalIndex: 0 });
-    expect(state.words[1]).toEqual({ word: 'line', lineIndex: 0, wordIndexInLine: 1, globalIndex: 1 });
-    expect(state.words[2]).toEqual({ word: 'second', lineIndex: 1, wordIndexInLine: 0, globalIndex: 2 });
-    expect(state.words[3]).toEqual({ word: 'line', lineIndex: 1, wordIndexInLine: 1, globalIndex: 3 });
+    expect(state.words[0]).toEqual({ word: 'first', lineIndex: 0, wordIndexInLine: 0, globalIndex: 0, speakable: true });
+    expect(state.words[1]).toEqual({ word: 'line', lineIndex: 0, wordIndexInLine: 1, globalIndex: 1, speakable: true });
+    expect(state.words[2]).toEqual({ word: 'second', lineIndex: 1, wordIndexInLine: 0, globalIndex: 2, speakable: true });
+    expect(state.words[3]).toEqual({ word: 'line', lineIndex: 1, wordIndexInLine: 1, globalIndex: 3, speakable: true });
   });
 
   it('filters empty lines', () => {
@@ -60,6 +60,26 @@ describe('createDocumentState', () => {
     const state = createDocumentState('# Lesson 1', anchors);
 
     expect(state.sectionAnchors).toBe(anchors);
+  });
+
+  it('skips [hidden] text completely', () => {
+    const content = 'Hello [hidden note] world';
+    const state = createDocumentState(content, []);
+
+    expect(state.words.length).toBe(2);
+    expect(state.words[0].word).toBe('hello');
+    expect(state.words[1].word).toBe('world');
+  });
+
+  it('marks {visible} content as non-speakable', () => {
+    const content = 'Hello {stage direction} world';
+    const state = createDocumentState(content, []);
+
+    expect(state.words.length).toBe(4);
+    expect(state.words[0]).toMatchObject({ word: 'hello', speakable: true });
+    expect(state.words[1]).toMatchObject({ word: 'stage', speakable: false });
+    expect(state.words[2]).toMatchObject({ word: 'direction', speakable: false });
+    expect(state.words[3]).toMatchObject({ word: 'world', speakable: true });
   });
 });
 
@@ -127,6 +147,27 @@ describe('processSpokenWord', () => {
 
     expect(result).not.toBeNull();
     expect(result!.globalWordIndex).toBe(1);
+  });
+
+  it('skips non-speakable words when matching', () => {
+    // "pause" is non-speakable so "world" should be found within look-ahead
+    const state = createTestState('Hello {pause} world');
+    const { result, newWordIndex } = processSpokenWord('world', state, 0);
+
+    expect(result).not.toBeNull();
+    expect(result!.globalWordIndex).toBe(2); // "world" is at index 2 (hello=0, pause=1, world=2)
+    expect(newWordIndex).toBe(3);
+  });
+
+  it('advances past non-speakable words after match', () => {
+    const state = createTestState('Hello {pause briefly} world');
+    // Match "hello" - should advance past "pause" and "briefly"
+    const { result, newWordIndex } = processSpokenWord('hello', state, 0);
+
+    expect(result).not.toBeNull();
+    expect(result!.globalWordIndex).toBe(0);
+    // newWordIndex should be 3 (after "hello", skip "pause" and "briefly", land on "world")
+    expect(newWordIndex).toBe(3);
   });
 });
 

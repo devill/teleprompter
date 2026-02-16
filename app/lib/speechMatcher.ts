@@ -1,6 +1,7 @@
 import { tokenize, normalizeNumber } from './textNormalizer';
 import type { SectionAnchor } from './sectionParser';
 import { parseParagraphs } from './paragraphParser';
+import { processBrackets } from './bracketProcessor';
 
 export interface MatchResult {
   lineIndex: number;
@@ -14,6 +15,7 @@ export interface DocumentWord {
   lineIndex: number;
   wordIndexInLine: number;
   globalIndex: number;
+  speakable: boolean;        // false for {curly bracket} content
 }
 
 export interface DocumentState {
@@ -39,6 +41,28 @@ const HEADER_BONUS = 50;
 const NUMBERED_SECTION_BONUS = 30;
 const MAX_DISTANCE_PENALTY = 20;
 
+function stripMarkdown(text: string): string {
+  return text
+    // Remove headers (### Header -> Header)
+    .replace(/^#{1,6}\s+/gm, '')
+    // Remove bold/italic markers
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/\*([^*]+)\*/g, '$1')
+    .replace(/__([^_]+)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    // Remove inline code
+    .replace(/`([^`]+)`/g, '$1')
+    // Remove links [text](url) -> text
+    .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1')
+    // Remove list markers
+    .replace(/^[\s]*[-*+]\s+/gm, '')
+    .replace(/^[\s]*\d+\.\s+/gm, '')
+    // Remove blockquote markers
+    .replace(/^>\s*/gm, '')
+    // Clean up extra whitespace
+    .trim();
+}
+
 export function createDocumentState(
   content: string,
   sectionAnchors: SectionAnchor[]
@@ -48,15 +72,31 @@ export function createDocumentState(
 
   let globalIndex = 0;
   for (let lineIndex = 0; lineIndex < lines.length; lineIndex++) {
-    const lineTokens = tokenize(lines[lineIndex]);
-    for (let wordIndexInLine = 0; wordIndexInLine < lineTokens.length; wordIndexInLine++) {
-      words.push({
-        word: lineTokens[wordIndexInLine],
-        lineIndex,
-        wordIndexInLine,
-        globalIndex,
-      });
-      globalIndex++;
+    // Strip markdown first, then process brackets
+    const strippedLine = stripMarkdown(lines[lineIndex]);
+    const processedLines = processBrackets(strippedLine);
+
+    // processBrackets returns an array with a single line for single-line input
+    const processedLine = processedLines[0];
+    if (!processedLine || processedLine.words.length === 0) {
+      continue;
+    }
+
+    let wordIndexInLine = 0;
+    for (const processedWord of processedLine.words) {
+      // Tokenize each word for normalization
+      const normalizedTokens = tokenize(processedWord.text);
+      for (const normalizedWord of normalizedTokens) {
+        words.push({
+          word: normalizedWord,
+          lineIndex,
+          wordIndexInLine,
+          globalIndex,
+          speakable: processedWord.speakable,
+        });
+        wordIndexInLine++;
+        globalIndex++;
+      }
     }
   }
 
@@ -65,6 +105,15 @@ export function createDocumentState(
     lineCount: lines.length,
     sectionAnchors,
   };
+}
+
+// Advance past any non-speakable words from a given position
+function skipNonSpeakableWords(state: DocumentState, startIndex: number): number {
+  let idx = startIndex;
+  while (idx < state.words.length && !state.words[idx].speakable) {
+    idx++;
+  }
+  return idx;
 }
 
 // Process a single newly spoken word and return updated position
@@ -79,24 +128,36 @@ export function processSpokenWord(
     return { result: null, newWordIndex: currentWordIndex };
   }
 
-  // Look ahead from current position for a match
-  const startIdx = currentWordIndex;
-  const endIdx = Math.min(state.words.length, startIdx + LOOK_AHEAD_WORDS);
+  // Look ahead from current position for a match, skipping non-speakable words
+  let speakableWordsChecked = 0;
+  let i = currentWordIndex;
 
-  for (let i = startIdx; i < endIdx; i++) {
-    if (wordsMatch(normalized, state.words[i].word)) {
-      const matchedWord = state.words[i];
+  while (i < state.words.length && speakableWordsChecked < LOOK_AHEAD_WORDS) {
+    const docWord = state.words[i];
+
+    // Skip non-speakable words (they don't count toward look-ahead limit)
+    if (!docWord.speakable) {
+      i++;
+      continue;
+    }
+
+    if (wordsMatch(normalized, docWord.word)) {
+      // Found a match - advance past any trailing non-speakable words
+      const newWordIndex = skipNonSpeakableWords(state, i + 1);
 
       return {
         result: {
-          lineIndex: matchedWord.lineIndex,
-          wordIndex: matchedWord.wordIndexInLine,
+          lineIndex: docWord.lineIndex,
+          wordIndex: docWord.wordIndexInLine,
           globalWordIndex: i,
           matchType: 'advance',
         },
-        newWordIndex: i + 1,
+        newWordIndex,
       };
     }
+
+    speakableWordsChecked++;
+    i++;
   }
 
   return { result: null, newWordIndex: currentWordIndex };
