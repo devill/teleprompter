@@ -20,6 +20,7 @@ export interface SourceRegistry {
 
 function createSourceRegistry(): SourceRegistry {
   const sources: Map<string, StorageSource> = new Map();
+  let initializePromise: Promise<void> | null = null;
 
   sources.set(myScriptsSource.id, myScriptsSource);
 
@@ -89,10 +90,19 @@ function createSourceRegistry(): SourceRegistry {
     },
 
     async initialize(): Promise<void> {
-      await restoreFolderHandles();
+      if (!initializePromise) {
+        initializePromise = restoreFolderHandles();
+      }
+      await initializePromise;
     },
 
     async getFile(fileId: string): Promise<{ source: StorageSource; content: string }> {
+      // Ensure initialization is complete before looking up sources
+      if (!initializePromise) {
+        initializePromise = restoreFolderHandles();
+      }
+      await initializePromise;
+
       const sourceId = parseFileIdSource(fileId);
       const source = sources.get(sourceId);
       if (!source) {
