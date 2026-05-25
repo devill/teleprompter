@@ -81,6 +81,36 @@ describe('createDocumentState', () => {
     expect(state.words[2]).toMatchObject({ word: 'direction', speakable: false });
     expect(state.words[3]).toMatchObject({ word: 'world', speakable: true });
   });
+
+  it('skips lines starting with > as production notes', () => {
+    const content = 'Hello world\n> producer: pause here\nGoodbye';
+    const state = createDocumentState(content, []);
+
+    expect(state.words.length).toBe(3);
+    expect(state.words[0].word).toBe('hello');
+    expect(state.words[1].word).toBe('world');
+    expect(state.words[2].word).toBe('goodbye');
+  });
+
+  it('skips production notes regardless of leading whitespace or > spacing', () => {
+    const content = 'Opening line\n>no space note\n  > indented note\n>> nested note\nClosing line';
+    const state = createDocumentState(content, []);
+
+    expect(state.words.length).toBe(4);
+    expect(state.words[0].word).toBe('opening');
+    expect(state.words[1].word).toBe('line');
+    expect(state.words[2].word).toBe('closing');
+    expect(state.words[3].word).toBe('line');
+  });
+
+  it('reindexes line numbers after skipping production notes', () => {
+    const content = 'First line\n> skip me\nSecond line';
+    const state = createDocumentState(content, []);
+
+    expect(state.lineCount).toBe(2);
+    expect(state.words[0].lineIndex).toBe(0);
+    expect(state.words[2].lineIndex).toBe(1);
+  });
 });
 
 describe('processSpokenWord', () => {

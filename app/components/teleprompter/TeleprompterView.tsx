@@ -28,10 +28,13 @@ function stripMarkdown(text: string): string {
     // Remove list markers
     .replace(/^[\s]*[-*+]\s+/gm, '')
     .replace(/^[\s]*\d+\.\s+/gm, '')
-    // Remove blockquote markers
-    .replace(/^>\s*/gm, '')
     // Clean up extra whitespace
     .trim();
+}
+
+// Lines starting with `>` are production notes — hidden from the teleprompter.
+function isProductionNote(line: string): boolean {
+  return line.trimStart().startsWith('>');
 }
 
 interface LineData {
@@ -48,7 +51,7 @@ const TeleprompterView = forwardRef<HTMLDivElement, TeleprompterViewProps>(
       const result: LineData[] = [];
       let globalWordIndex = 0;
 
-      const rawLines = content.split('\n').filter(line => line.trim());
+      const rawLines = content.split('\n').filter(line => line.trim() && !isProductionNote(line));
 
       for (const rawLine of rawLines) {
         const isHeader = /^#{1,6}\s+/.test(rawLine);

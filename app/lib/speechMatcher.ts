@@ -57,17 +57,20 @@ function stripMarkdown(text: string): string {
     // Remove list markers
     .replace(/^[\s]*[-*+]\s+/gm, '')
     .replace(/^[\s]*\d+\.\s+/gm, '')
-    // Remove blockquote markers
-    .replace(/^>\s*/gm, '')
     // Clean up extra whitespace
     .trim();
+}
+
+// Lines starting with `>` are production notes — hidden from display and speech matching.
+function isProductionNote(line: string): boolean {
+  return line.trimStart().startsWith('>');
 }
 
 export function createDocumentState(
   content: string,
   sectionAnchors: SectionAnchor[]
 ): DocumentState {
-  const lines = content.split('\n').filter(line => line.trim());
+  const lines = content.split('\n').filter(line => line.trim() && !isProductionNote(line));
   const words: DocumentWord[] = [];
 
   let globalIndex = 0;
