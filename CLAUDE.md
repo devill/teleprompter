@@ -15,13 +15,15 @@ Design principle: **simplicity, ease of use and extensibility**
 
 ## Commands
 
+This project uses **pnpm** (pinned via `packageManager` in `package.json`). Do not run `npm install` — it would create a `package-lock.json` and bypass the supply-chain hardening in `.npmrc` (`minimum-release-age=2880`) and `pnpm.onlyBuiltDependencies` in `package.json`.
+
 ```bash
-npm run dev        # Start development server (http://localhost:7313)
-npm run build      # Production build
-npm run start      # Start production server
-npm run lint       # Run ESLint
-npm test           # Run tests once
-npm run test:watch # Run tests in watch mode
+pnpm dev        # Start development server (http://localhost:7313)
+pnpm build      # Production build
+pnpm start      # Start production server
+pnpm lint       # Run ESLint
+pnpm test       # Run tests once
+pnpm test:watch # Run tests in watch mode
 ```
 
 ## Tech Stack

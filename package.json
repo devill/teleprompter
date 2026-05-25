@@ -2,6 +2,10 @@
   "name": "teleprompter",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@10.16.0",
+  "pnpm": {
+    "onlyBuiltDependencies": []
+  },
   "scripts": {
     "dev": "next dev --port 7313",
     "build": "next build",
