@@ -12,27 +12,35 @@ export interface KeyboardActions {
   onTogglePause?: () => void;
   onEscape?: () => void;
   onPaste?: () => void;
+  // When true, swap vertical (up/down) and horizontal (left/right) arrow roles
+  // so presenter clickers — which usually emit up/down — can drive paragraph navigation.
+  presenterMode?: boolean;
 }
 
 export function useKeyboardControls(actions: KeyboardActions) {
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const verticalPrev = actions.presenterMode ? actions.onPreviousParagraph : actions.onPreviousSection;
+      const verticalNext = actions.presenterMode ? actions.onNextParagraph : actions.onNextSection;
+      const horizontalPrev = actions.presenterMode ? actions.onPreviousSection : actions.onPreviousParagraph;
+      const horizontalNext = actions.presenterMode ? actions.onNextSection : actions.onNextParagraph;
+
       switch (e.key) {
         case 'ArrowUp':
           e.preventDefault();
-          actions.onPreviousSection?.();
+          verticalPrev?.();
           break;
         case 'ArrowDown':
           e.preventDefault();
-          actions.onNextSection?.();
+          verticalNext?.();
           break;
         case 'ArrowLeft':
           e.preventDefault();
-          actions.onPreviousParagraph?.();
+          horizontalPrev?.();
           break;
         case 'ArrowRight':
           e.preventDefault();
-          actions.onNextParagraph?.();
+          horizontalNext?.();
           break;
         case 'PageUp':
           e.preventDefault();

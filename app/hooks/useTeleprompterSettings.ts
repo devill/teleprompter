@@ -6,12 +6,14 @@ export interface TeleprompterSettings {
   fontSize: number;
   marginPercentage: number;
   scrollSpeed: number;
+  presenterMode: boolean;
 }
 
 const DEFAULT_SETTINGS: TeleprompterSettings = {
   fontSize: 48,
   marginPercentage: 10,
   scrollSpeed: 5,
+  presenterMode: false,
 };
 
 const STORAGE_KEY = 'autolektor_teleprompter_settings';

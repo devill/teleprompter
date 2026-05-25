@@ -73,10 +73,10 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
           <h3 className={styles.sectionTitle}>Keyboard Shortcuts</h3>
           <dl className={styles.commandList}>
             <dt>↑ / ↓</dt>
-            <dd>Navigate between sections</dd>
+            <dd>Navigate between sections (paragraphs in 🎮 presenter mode)</dd>
 
             <dt>← / →</dt>
-            <dd>Navigate between paragraphs</dd>
+            <dd>Navigate between paragraphs (sections in 🎮 presenter mode)</dd>
 
             <dt>Page Up / Page Down</dt>
             <dd>Scroll by page</dd>
@@ -89,6 +89,9 @@ export default function HelpModal({ isOpen, onClose }: HelpModalProps) {
 
             <dt>Cmd/Ctrl+V</dt>
             <dd>Paste script</dd>
+
+            <dt>🎮 button</dt>
+            <dd>Toggle presenter clicker mode (swaps up/down ↔ left/right)</dd>
           </dl>
         </section>
       </div>

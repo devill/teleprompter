@@ -126,6 +126,17 @@ export default function TeleprompterControls({
           </button>
         )}
 
+        {/* Presenter Clicker Mode — swaps up/down ↔ left/right arrows */}
+        <button
+          className={`${styles.button} ${settings.presenterMode ? styles.active : ''}`}
+          onClick={() => onSettingsChange({ presenterMode: !settings.presenterMode })}
+          title={settings.presenterMode
+            ? 'Presenter clicker mode on — up/down jumps paragraph, left/right jumps section'
+            : 'Enable presenter clicker mode (swap up/down with left/right arrows)'}
+        >
+          🎮
+        </button>
+
         {/* Fullscreen Toggle */}
         <button
           className={styles.button}

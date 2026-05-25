@@ -563,6 +563,7 @@ function TeleprompterContent() {
       if (isFullscreen) toggleFullscreen();
     },
     onPaste: !isListening ? handlePaste : undefined,
+    presenterMode: settings.presenterMode,
   });
 
   // Apply teleprompter theme
