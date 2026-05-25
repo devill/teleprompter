@@ -18,10 +18,17 @@ export interface DocumentWord {
   speakable: boolean;        // false for {curly bracket} content
 }
 
+export interface ResolvedAnchor {
+  anchor: SectionAnchor;
+  lineIndex: number;         // Doc line index (excludes blank + production-note lines)
+}
+
 export interface DocumentState {
   words: DocumentWord[];     // Flattened word list
   lineCount: number;
   sectionAnchors: SectionAnchor[];
+  headings: ResolvedAnchor[];           // Heading anchors resolved by charIndex, sorted by lineIndex
+  numberedSections: ResolvedAnchor[];   // Numbered "Lesson N"/"Chapter N" anchors resolved by charIndex
 }
 
 export interface JumpSearchResult {
@@ -103,10 +110,28 @@ export function createDocumentState(
     }
   }
 
+  const resolveAnchor = (anchor: SectionAnchor): ResolvedAnchor => {
+    const rawLineIndex = charIndexToLineIndex(anchor.charIndex, content);
+    const docLineIndex = rawLineToDocLineIndex(rawLineIndex, content);
+    return { anchor, lineIndex: docLineIndex };
+  };
+
+  const headings = sectionAnchors
+    .filter(a => a.type === 'heading')
+    .map(resolveAnchor)
+    .sort((a, b) => a.lineIndex - b.lineIndex);
+
+  const numberedSections = sectionAnchors
+    .filter(a => a.type === 'numbered')
+    .map(resolveAnchor)
+    .sort((a, b) => a.lineIndex - b.lineIndex);
+
   return {
     words,
     lineCount: lines.length,
     sectionAnchors,
+    headings,
+    numberedSections,
   };
 }
 
@@ -193,6 +218,9 @@ export function searchForJumpTarget(
     lineGroups.get(word.lineIndex)!.words.push(word.word);
   }
 
+  const headerLineIndices = new Set(state.headings.map(h => h.lineIndex));
+  const numberedLineIndices = new Set(state.numberedSections.map(n => n.lineIndex));
+
   let bestMatch: JumpSearchResult | null = null;
 
   for (const [lineIndex, { words: lineWords, firstWordIndex }] of lineGroups) {
@@ -203,19 +231,11 @@ export function searchForJumpTarget(
       let totalScore = matchScore;
       const matchedText = lineWords.slice(0, 6).join(' ');
 
-      // Header bonus
-      const isHeader = state.sectionAnchors.some(
-        anchor => anchor.type === 'heading' && findAnchorLine(anchor, lineGroups) === lineIndex
-      );
-      if (isHeader) {
+      if (headerLineIndices.has(lineIndex)) {
         totalScore += HEADER_BONUS;
       }
 
-      // Numbered section bonus
-      const isNumberedSection = state.sectionAnchors.some(
-        anchor => anchor.type === 'numbered' && findAnchorLine(anchor, lineGroups) === lineIndex
-      );
-      if (isNumberedSection) {
+      if (numberedLineIndices.has(lineIndex)) {
         totalScore += NUMBERED_SECTION_BONUS;
       }
 
@@ -376,31 +396,6 @@ function scoreLineMatch(targetWords: string[], lineWords: string[]): number {
   return baseScore + consecutiveBonus;
 }
 
-// Find which line an anchor belongs to
-function findAnchorLine(
-  anchor: SectionAnchor,
-  lineGroups: Map<number, { words: string[]; firstWordIndex: number }>
-): number {
-  const anchorWords = tokenize(anchor.text);
-  let bestLine = 0;
-  let bestScore = 0;
-
-  for (const [lineIndex, { words }] of lineGroups) {
-    let score = 0;
-    for (const anchorWord of anchorWords) {
-      if (words.some(w => wordsMatch(anchorWord, w))) {
-        score++;
-      }
-    }
-    if (score > bestScore) {
-      bestScore = score;
-      bestLine = lineIndex;
-    }
-  }
-
-  return bestLine;
-}
-
 function wordsMatch(spoken: string, document: string): boolean {
   if (spoken === document) {
     return true;
@@ -461,45 +456,12 @@ function levenshteinDistance(a: string, b: string): number {
   return matrix[b.length][a.length];
 }
 
-// Build line groups from state words for anchor matching
-function buildLineGroups(state: DocumentState): Map<number, { words: string[]; firstWordIndex: number }> {
-  const lineGroups = new Map<number, { words: string[]; firstWordIndex: number }>();
-  for (const word of state.words) {
-    if (!lineGroups.has(word.lineIndex)) {
-      lineGroups.set(word.lineIndex, { words: [], firstWordIndex: word.globalIndex });
-    }
-    lineGroups.get(word.lineIndex)!.words.push(word.word);
-  }
-  return lineGroups;
-}
-
-// Get heading anchors with their line indices sorted by line index
-function getHeadingsWithLineIndices(
-  state: DocumentState
-): Array<{ anchor: SectionAnchor; lineIndex: number }> {
-  const headings = state.sectionAnchors.filter(a => a.type === 'heading');
-  if (headings.length === 0) {
-    return [];
-  }
-
-  const lineGroups = buildLineGroups(state);
-  const result: Array<{ anchor: SectionAnchor; lineIndex: number }> = [];
-
-  for (const anchor of headings) {
-    const lineIndex = findAnchorLine(anchor, lineGroups);
-    result.push({ anchor, lineIndex });
-  }
-
-  result.sort((a, b) => a.lineIndex - b.lineIndex);
-  return result;
-}
-
 // Jump to the start of the current section (its heading)
 export function jumpToSectionStart(
   state: DocumentState,
   currentWordIndex: number
 ): JumpSearchResult | null {
-  const headingsWithLines = getHeadingsWithLineIndices(state);
+  const headingsWithLines = state.headings;
   if (headingsWithLines.length === 0) {
     return null;
   }
@@ -551,7 +513,7 @@ export function jumpToPreviousSection(
   state: DocumentState,
   currentWordIndex: number
 ): JumpSearchResult | null {
-  const headingsWithLines = getHeadingsWithLineIndices(state);
+  const headingsWithLines = state.headings;
   if (headingsWithLines.length === 0) {
     return null;
   }
@@ -605,7 +567,7 @@ export function jumpToNextSection(
   state: DocumentState,
   currentWordIndex: number
 ): JumpSearchResult | null {
-  const headingsWithLines = getHeadingsWithLineIndices(state);
+  const headingsWithLines = state.headings;
   if (headingsWithLines.length === 0) {
     return null;
   }
@@ -648,7 +610,7 @@ export function getCurrentSectionBounds(
   state: DocumentState,
   currentWordIndex: number
 ): SectionBounds | null {
-  const headingsWithLines = getHeadingsWithLineIndices(state);
+  const headingsWithLines = state.headings;
 
   // If no headings, treat entire document as one section
   if (headingsWithLines.length === 0) {
@@ -728,13 +690,14 @@ export function charIndexToLineIndex(charIndex: number, content: string): number
   return lineIndex;
 }
 
-// Map a raw line index (including blank lines) to DocumentState line index (excluding blank lines)
+// Map a raw line index to DocumentState line index (which excludes blank + production-note lines).
+// Must mirror the line filter in createDocumentState.
 function rawLineToDocLineIndex(rawLineIndex: number, content: string): number {
   const lines = content.split('\n');
   let docLineIndex = 0;
 
   for (let i = 0; i < rawLineIndex && i < lines.length; i++) {
-    if (lines[i].trim()) {
+    if (lines[i].trim() && !isProductionNote(lines[i])) {
       docLineIndex++;
     }
   }

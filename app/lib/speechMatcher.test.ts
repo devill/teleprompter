@@ -472,6 +472,45 @@ describe('jumpToNextSection', () => {
     expect(result).not.toBeNull();
     expect(result!.matchedText).toContain('section two');
   });
+
+  it('does not skip a heading even when body text tokens collide with it', () => {
+    // Regression: text-overlap heading resolution previously mapped "Level 2" to the
+    // intro line because it contains both "levels" (prefix-matches "level") and "2".
+    // With charIndex-based resolution, each heading lands on its own line and section
+    // navigation iterates through every heading.
+    const body = 'There are 7 levels of coding identified over 2 decades.';
+    const heading1 = '## Level 1';
+    const heading2 = '## Level 2';
+    const heading3 = '## Level 3';
+    const script = `# Title\n\n${body}\n\n${heading1}\n\nFirst level body.\n\n${heading2}\n\nSecond level body.\n\n${heading3}\n\nThird level body.`;
+
+    const charIdx = (needle: string) => script.indexOf(needle);
+    const collidingAnchors: SectionAnchor[] = [
+      { id: 't', type: 'heading', level: 1, text: 'Title', normalizedText: 'title', keywords: ['title'], charIndex: charIdx('# Title') },
+      { id: 'l1', type: 'heading', level: 2, text: 'Level 1', normalizedText: 'level 1', keywords: ['level', '1', 'one'], charIndex: charIdx(heading1) },
+      { id: 'l2', type: 'heading', level: 2, text: 'Level 2', normalizedText: 'level 2', keywords: ['level', '2', 'two'], charIndex: charIdx(heading2) },
+      { id: 'l3', type: 'heading', level: 2, text: 'Level 3', normalizedText: 'level 3', keywords: ['level', '3', 'three'], charIndex: charIdx(heading3) },
+    ];
+    const state = createDocumentState(script, collidingAnchors);
+
+    // Headings must be resolved in source order, on the correct doc lines (not the intro body line).
+    expect(state.headings.map(h => h.anchor.text)).toEqual(['Title', 'Level 1', 'Level 2', 'Level 3']);
+    const lineIndices = state.headings.map(h => h.lineIndex);
+    expect(lineIndices).toEqual([...lineIndices].sort((a, b) => a - b));
+    expect(new Set(lineIndices).size).toBe(lineIndices.length); // no two anchors collapse onto the same line
+
+    // Starting in Level 1, the next section must be Level 2 (not skipped, not Level 3).
+    const level1WordIndex = state.words.findIndex(w => w.lineIndex === state.headings[1].lineIndex);
+    const next = jumpToNextSection(state, level1WordIndex);
+    expect(next).not.toBeNull();
+    expect(next!.matchedText).toContain('level 2');
+
+    // Going backward from Level 3 lands on Level 2, not the intro body.
+    const level3WordIndex = state.words.findIndex(w => w.lineIndex === state.headings[3].lineIndex);
+    const prev = jumpToPreviousSection(state, level3WordIndex);
+    expect(prev).not.toBeNull();
+    expect(prev!.matchedText).toContain('level 2');
+  });
 });
 
 describe('getCurrentSectionBounds', () => {
