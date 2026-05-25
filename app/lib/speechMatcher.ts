@@ -94,8 +94,22 @@ export function createDocumentState(
 
     let wordIndexInLine = 0;
     for (const processedWord of processedLine.words) {
-      // Tokenize each word for normalization
       const normalizedTokens = tokenize(processedWord.text);
+      if (normalizedTokens.length === 0) {
+        // Punctuation-only word (e.g., a standalone em-dash). The display still
+        // renders it, so reserve a non-speakable slot to keep the matcher's
+        // word indices aligned with the display's.
+        words.push({
+          word: '',
+          lineIndex,
+          wordIndexInLine,
+          globalIndex,
+          speakable: false,
+        });
+        wordIndexInLine++;
+        globalIndex++;
+        continue;
+      }
       for (const normalizedWord of normalizedTokens) {
         words.push({
           word: normalizedWord,

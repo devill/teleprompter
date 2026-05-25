@@ -111,6 +111,33 @@ describe('createDocumentState', () => {
     expect(state.words[0].lineIndex).toBe(0);
     expect(state.words[2].lineIndex).toBe(1);
   });
+
+  it('reserves a non-speakable slot for punctuation-only "words" so display and matcher indices stay aligned', () => {
+    // Regression: a standalone em-dash like "agent — for" used to advance the
+    // display's word counter but not the matcher's, because tokenize() strips
+    // it to empty. Over a long script, this drifts the displayed cursor behind
+    // the matcher's position by one word per such dash.
+    const state = createDocumentState('agent — for', []);
+
+    expect(state.words.length).toBe(3);
+    expect(state.words[0]).toMatchObject({ word: 'agent', speakable: true });
+    expect(state.words[1]).toMatchObject({ word: '', speakable: false });
+    expect(state.words[2]).toMatchObject({ word: 'for', speakable: true });
+  });
+
+  it('keeps matcher word count in lockstep with the display across multiple punctuation-only words', () => {
+    // Standalone em-dashes and ASCII hyphens used as parentheticals.
+    const state = createDocumentState('Steve - the CEO - announced receipts — but yes', []);
+
+    // 3 standalone punctuation slots ("-", "-", "—") + 7 speakable words
+    // (Steve, the, CEO, announced, receipts, but, yes) = 10 total.
+    // Without the fix the matcher would only count 7 and drift 3 behind the display.
+    const nonSpeakableCount = state.words.filter(w => !w.speakable).length;
+    const speakableCount = state.words.filter(w => w.speakable).length;
+    expect(nonSpeakableCount).toBe(3);
+    expect(speakableCount).toBe(7);
+    expect(state.words.length).toBe(10);
+  });
 });
 
 describe('processSpokenWord', () => {
