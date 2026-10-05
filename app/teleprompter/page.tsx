@@ -295,7 +295,6 @@ function TeleprompterContent() {
 
     if (Math.abs(distance) < 1) return;
 
-    let animationFrameId: number;
     let lastTime = performance.now();
 
     const animate = (currentTime: number) => {
@@ -320,11 +319,11 @@ function TeleprompterContent() {
 
       if (Math.abs(currentError) > 1) {
         container.scrollTop += move;
-        animationFrameId = requestAnimationFrame(animate);
+        requestAnimationFrame(animate);
       }
     };
 
-    animationFrameId = requestAnimationFrame(animate);
+    requestAnimationFrame(animate);
   }, []);
 
   // Handle user scroll to move read head

@@ -46,7 +46,7 @@ function openBrowser(url) {
 }
 
 async function getAuthenticatedClient(credentials) {
-  const { client_id, client_secret, redirect_uris } = credentials.installed
+  const { client_id, client_secret } = credentials.installed
 
   const oAuth2Client = new google.auth.OAuth2(
     client_id,

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { processBrackets, ProcessedWord, ProcessedLine } from './bracketProcessor';
+import { processBrackets } from './bracketProcessor';
 
 describe('processBrackets', () => {
   describe('no brackets', () => {

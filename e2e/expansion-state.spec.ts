@@ -76,7 +76,7 @@ test.describe('Expansion state persistence', () => {
 
     // my-scripts should be expanded by default
     const myScriptsHeader = page.locator('[class*="sourceHeader"]').filter({ hasText: 'My Scripts' });
-    let chevron = myScriptsHeader.locator('[class*="expandIcon"]');
+    const chevron = myScriptsHeader.locator('[class*="expandIcon"]');
     let chevronClass = await chevron.getAttribute('class');
     console.log('Initial chevron class:', chevronClass);
     expect(chevronClass).toContain('expandIconExpanded');

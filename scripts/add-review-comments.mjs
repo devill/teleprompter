@@ -59,7 +59,7 @@ function insertMarker(content, start, end, commentId) {
   return `${before}[[c:${commentId}]]${selected}[[/c]]${after}`
 }
 
-function hasExistingMarker(content, start, end) {
+function hasExistingMarker(content, start) {
   // Check if this region is already inside a marker
   const beforeText = content.slice(0, start)
   const openMarkers = (beforeText.match(/\[\[c:[^\]]+\]\]/g) || []).length
@@ -167,7 +167,7 @@ async function main() {
   let addedCount = 0
 
   for (const comment of processedComments) {
-    const { position, quotedText } = comment
+    const { quotedText } = comment
 
     // Re-find position in current content (after previous insertions)
     const currentPosition = findQuotedText(content, quotedText)
@@ -177,7 +177,7 @@ async function main() {
     }
 
     // Skip if already has a marker
-    if (hasExistingMarker(content, currentPosition.start, currentPosition.end)) {
+    if (hasExistingMarker(content, currentPosition.start)) {
       console.warn(`Warning: Text already has a comment marker: "${quotedText.slice(0, 50)}..."`)
       continue
     }
