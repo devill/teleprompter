@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 
 // Web Speech API type declarations (not included in standard TypeScript DOM types)
 interface SpeechRecognitionErrorEvent extends Event {
@@ -71,9 +71,19 @@ const MAX_RETRIES = 4;
 const BASE_RETRY_DELAY_MS = 500;
 const MAX_RETRY_DELAY_MS = 4000;
 
+// Browser support never changes within a session, so expose it via
+// useSyncExternalStore: false on the server, the real check after hydration.
+const speechSupportSubscribe = () => () => {};
+const getSpeechSupport = () =>
+  Boolean(window.SpeechRecognition || window.webkitSpeechRecognition);
+const getServerSpeechSupport = () => false;
+
 export function useSpeechRecognition(): UseSpeechRecognitionReturn {
-  // Initialize to false for SSR, update after hydration to avoid mismatch
-  const [isSupported, setIsSupported] = useState(false);
+  const isSupported = useSyncExternalStore(
+    speechSupportSubscribe,
+    getSpeechSupport,
+    getServerSpeechSupport
+  );
   const [isListening, setIsListening] = useState(false);
   const [isReconnecting, setIsReconnecting] = useState(false);
   const [reconnectSuccess, setReconnectSuccess] = useState(false);
@@ -89,11 +99,6 @@ export function useSpeechRecognition(): UseSpeechRecognitionReturn {
   const successTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Track reconnection state in ref so onend can check it
   const isReconnectingRef = useRef(false);
-
-  // Check browser support after hydration
-  useEffect(() => {
-    setIsSupported(!!(window.SpeechRecognition || window.webkitSpeechRecognition));
-  }, []);
 
   useEffect(() => {
     const SpeechRecognitionAPI = window.SpeechRecognition || window.webkitSpeechRecognition;

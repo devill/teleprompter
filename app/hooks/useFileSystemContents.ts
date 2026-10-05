@@ -10,36 +10,49 @@ interface UseFileSystemContentsResult {
   error: Error | null;
 }
 
+interface LoadedContents {
+  source: FileSystemSource | null;
+  contents: FileSystemContents | null;
+  error: Error | null;
+}
+
 export function useFileSystemContents(
   source: FileSystemSource | null
 ): UseFileSystemContentsResult {
-  const [contents, setContents] = useState<FileSystemContents | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<Error | null>(null);
+  const [loaded, setLoaded] = useState<LoadedContents>({
+    source: null,
+    contents: null,
+    error: null,
+  });
 
   useEffect(() => {
-    if (!source) {
-      setContents(null);
-      setIsLoading(false);
-      setError(null);
-      return;
-    }
+    if (!source) return;
 
-    setIsLoading(true);
-    setError(null);
-
+    let cancelled = false;
     source
       .listContents()
-      .then((loadedContents) => {
-        setContents(loadedContents);
-        setIsLoading(false);
+      .then((contents) => {
+        if (!cancelled) setLoaded({ source, contents, error: null });
       })
       .catch((err: unknown) => {
-        setError(err instanceof Error ? err : new Error(String(err)));
-        setContents(null);
-        setIsLoading(false);
+        if (!cancelled) {
+          setLoaded({
+            source,
+            contents: null,
+            error: err instanceof Error ? err : new Error(String(err)),
+          });
+        }
       });
+
+    return () => {
+      cancelled = true;
+    };
   }, [source]);
 
-  return { contents, isLoading, error };
+  const isLoadedForSource = loaded.source !== null && loaded.source === source;
+  return {
+    contents: isLoadedForSource ? loaded.contents : null,
+    isLoading: source !== null && !isLoadedForSource,
+    error: isLoadedForSource ? loaded.error : null,
+  };
 }

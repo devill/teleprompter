@@ -3,34 +3,47 @@
 import { useState, useEffect, useCallback } from 'react';
 import { sourceRegistry, ScriptFile } from '@/app/lib/storage';
 
-export function useScriptList(sourceId: string) {
-  const [files, setFiles] = useState<ScriptFile[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+interface LoadedFiles {
+  sourceId: string;
+  refreshCount: number;
+  files: ScriptFile[];
+}
 
-  const loadFiles = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      const source = sourceRegistry.getSource(sourceId);
-      if (source) {
-        const loadedFiles = await source.listFiles();
-        setFiles(loadedFiles);
-      } else {
-        setFiles([]);
-      }
-    } catch {
-      setFiles([]);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [sourceId]);
+export function useScriptList(sourceId: string) {
+  const [loaded, setLoaded] = useState<LoadedFiles>({
+    sourceId,
+    refreshCount: -1,
+    files: [],
+  });
+  const [refreshCount, setRefreshCount] = useState(0);
 
   useEffect(() => {
-    loadFiles();
-  }, [loadFiles]);
+    let cancelled = false;
+    const load = async () => {
+      let files: ScriptFile[] = [];
+      try {
+        const source = sourceRegistry.getSource(sourceId);
+        if (source) {
+          files = await source.listFiles();
+        }
+      } catch {
+        files = [];
+      }
+      if (!cancelled) setLoaded({ sourceId, refreshCount, files });
+    };
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [sourceId, refreshCount]);
 
   const refresh = useCallback(() => {
-    loadFiles();
-  }, [loadFiles]);
+    setRefreshCount((count) => count + 1);
+  }, []);
 
-  return { files, isLoading, refresh };
+  return {
+    files: loaded.sourceId === sourceId ? loaded.files : [],
+    isLoading: loaded.sourceId !== sourceId || loaded.refreshCount !== refreshCount,
+    refresh,
+  };
 }

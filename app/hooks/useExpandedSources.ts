@@ -47,74 +47,72 @@ export function useExpandedSources(sourceIds: string[]): {
     return new Set(saved?.expanded ?? DEFAULT_EXPANDED);
   });
 
-  // Track known sources (lazy init via isInitialized)
-  const knownSourceIds = useRef<Set<string>>(new Set());
-  const isInitialized = useRef(false);
-  if (!isInitialized.current) {
+  // Track known sources (lazily read from storage once, on first render)
+  const [knownSourceIds, setKnownSourceIds] = useState<Set<string>>(() => {
     const saved = loadFromStorage();
-    knownSourceIds.current = new Set(saved?.known ?? sourceIds);
-    isInitialized.current = true;
-  }
-
-  // Track latest sourceIds for save effect
-  const sourceIdsRef = useRef(sourceIds);
-  sourceIdsRef.current = sourceIds;
+    return new Set(saved?.known ?? sourceIds);
+  });
 
   // Track which sourceIds we've seen in this session (to detect removals)
   const seenSourceIds = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    const currentKnown = knownSourceIds.current;
     const sourceIdSet = new Set(sourceIds);
-    const currentSeen = seenSourceIds.current;
-    const newSources = sourceIds.filter(id => !currentKnown.has(id));
+    const newSources = sourceIds.filter(id => !knownSourceIds.has(id));
+    const removedSources = [...seenSourceIds.current].filter(id => !sourceIdSet.has(id));
 
-    // Find sources that were seen before but are now removed
-    const removedSources = [...currentSeen].filter(id => !sourceIdSet.has(id));
+    if (newSources.length > 0 || removedSources.length > 0) {
+      // Update expandedSources
+      setExpandedSources(prev => {
+        let next = prev;
 
-    // Update expandedSources
-    setExpandedSources(prev => {
-      let next = prev;
+        // Add new sources
+        if (newSources.length > 0) {
+          next = new Set(next);
+          for (const id of newSources) {
+            next.add(id);
+          }
+        }
 
-      // Add new sources
+        // Remove only sources that we saw before but are now gone
+        if (removedSources.length > 0) {
+          if (next === prev) next = new Set(next);
+          for (const id of removedSources) {
+            next.delete(id);
+          }
+        }
+
+        return next;
+      });
+
       if (newSources.length > 0) {
-        next = new Set(next);
-        for (const id of newSources) {
-          next.add(id);
-        }
+        setKnownSourceIds(prev => {
+          const next = new Set(prev);
+          for (const id of newSources) {
+            next.add(id);
+          }
+          return next;
+        });
       }
-
-      // Remove only sources that we saw before but are now gone
-      if (removedSources.length > 0) {
-        if (next === prev) next = new Set(next);
-        for (const id of removedSources) {
-          next.delete(id);
-        }
-      }
-
-      return next;
-    });
-
-    // Update tracking refs
-    for (const id of newSources) {
-      knownSourceIds.current.add(id);
     }
+
+    // Update session tracking
     for (const id of sourceIds) {
       seenSourceIds.current.add(id);
     }
     for (const id of removedSources) {
       seenSourceIds.current.delete(id);
     }
-  }, [sourceIds]);
+  }, [sourceIds, knownSourceIds]);
 
   // Save to localStorage, filtering to only include current sources
   useEffect(() => {
-    const currentSourceIds = new Set(sourceIdsRef.current);
+    const currentSourceIds = new Set(sourceIds);
     saveToStorage({
       expanded: [...expandedSources].filter(id => currentSourceIds.has(id)),
-      known: [...knownSourceIds.current].filter(id => currentSourceIds.has(id)),
+      known: [...knownSourceIds].filter(id => currentSourceIds.has(id)),
     });
-  }, [expandedSources, sourceIds]);
+  }, [expandedSources, knownSourceIds, sourceIds]);
 
   const toggleSource = useCallback((id: string) => {
     setExpandedSources(prev => {
