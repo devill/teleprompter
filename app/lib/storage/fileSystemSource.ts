@@ -172,19 +172,19 @@ export class FileSystemSource implements StorageSource {
     return file.text();
   }
 
-  writeFile(): Promise<void> {
+  writeFile(_id: string, _content: string): Promise<void> {
     throw new Error('File system sources are read-only');
   }
 
-  deleteFile(): Promise<void> {
+  deleteFile(_id: string): Promise<void> {
     throw new Error('File system sources are read-only');
   }
 
-  renameFile(): Promise<void> {
+  renameFile(_id: string, _newName: string): Promise<void> {
     throw new Error('File system sources are read-only');
   }
 
-  createFile(): Promise<ScriptFile> {
+  createFile(_name: string, _content: string): Promise<ScriptFile> {
     throw new Error('File system sources are read-only');
   }
 }
