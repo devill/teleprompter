@@ -1,9 +1,5 @@
 import type { StorageSource, ScriptFile, FolderEntry, FileSystemContents } from './types';
 
-interface FileSystemDirectoryHandleWithIterator extends FileSystemDirectoryHandle {
-  values(): AsyncIterableIterator<FileSystemFileHandle | FileSystemDirectoryHandle>;
-}
-
 interface FileSystemHandleWithPermission extends FileSystemDirectoryHandle {
   requestPermission(options: { mode: 'read' | 'readwrite' }): Promise<'granted' | 'denied' | 'prompt'>;
 }
@@ -33,7 +29,7 @@ function isHiddenDirectory(name: string): boolean {
 }
 
 async function collectMarkdownFiles(
-  handle: FileSystemDirectoryHandleWithIterator
+  handle: FileSystemDirectoryHandle
 ): Promise<FileSystemFileHandle[]> {
   const files: FileSystemFileHandle[] = [];
   for await (const entry of handle.values()) {
@@ -45,7 +41,7 @@ async function collectMarkdownFiles(
 }
 
 async function collectContents(
-  handle: FileSystemDirectoryHandleWithIterator,
+  handle: FileSystemDirectoryHandle,
   sourceId: string,
   currentPath: string
 ): Promise<FileSystemContents> {
@@ -78,7 +74,7 @@ async function collectContents(
   for (const dirHandle of dirHandles) {
     const folderPath = currentPath ? `${currentPath}/${dirHandle.name}` : dirHandle.name;
     const subContents = await collectContents(
-      dirHandle as FileSystemDirectoryHandleWithIterator,
+      dirHandle,
       sourceId,
       folderPath
     );
@@ -136,9 +132,7 @@ export class FileSystemSource implements StorageSource {
     if (!this.permissionGranted) {
       return [];
     }
-    const fileHandles = await collectMarkdownFiles(
-      this.handle as FileSystemDirectoryHandleWithIterator
-    );
+    const fileHandles = await collectMarkdownFiles(this.handle);
     return fileHandles.map((fileHandle) => ({
       id: buildFileId(this.id, fileHandle.name),
       name: removeExtension(fileHandle.name),
@@ -150,11 +144,7 @@ export class FileSystemSource implements StorageSource {
     if (!this.permissionGranted) {
       return { files: [], folders: [] };
     }
-    return collectContents(
-      this.handle as FileSystemDirectoryHandleWithIterator,
-      this.id,
-      ''
-    );
+    return collectContents(this.handle, this.id, '');
   }
 
   async readFile(fileId: string): Promise<string> {
